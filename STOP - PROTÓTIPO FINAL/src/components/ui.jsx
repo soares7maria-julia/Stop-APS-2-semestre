@@ -1,3 +1,8 @@
+//serve para reunir componentes visuais reutilizáveis do projeto.
+
+//Por exemplo, em vez de criar um botão do zero em cada tela, você pode criar um componente de 
+// botão nesse arquivo e utilizá-lo em várias telas.
+
 import React, { useState, useEffect } from 'react';
 const btnBase = 'inline-flex items-center justify-center gap-2 font-bold rounded-2xl cursor-pointer border-0 select-none';
 const btnVariants = {
