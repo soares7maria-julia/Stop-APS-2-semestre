@@ -12,10 +12,13 @@ import { RankingScreen } from './screens/RankingScreen';
 import { ProfileScreen } from './screens/ProfileScreen';
 import { LetterDrawScreen } from './screens/LetterDrawScreen';
 import { RoundEndScreen } from './screens/RoundEndScreen';
-import { Modal } from './components/ui';
+import { Modal, AVATARS } from './components/ui';
+import { getSession, onAuthChange, signOut } from './services/authService';
+
 export default function App() {
     const [screen, setScreen] = useState('auth');
     const [user, setUser] = useState(null);
+    const [checking, setChecking] = useState(true);
     const [darkMode, setDarkMode] = useState(false);
     const [soundOn, setSoundOn] = useState(true);
     const [room, setRoom] = useState(null);
@@ -26,13 +29,58 @@ export default function App() {
     const [instrOpen, setInstrOpen] = useState(false);
     const [roundAnswers, setRoundAnswers] = useState({});
     const [stopReason, setStopReason] = useState('stop');
+
     useEffect(() => {
         document.documentElement.classList.toggle('dark', darkMode);
     }, [darkMode]);
+
+    useEffect(() => {
+        function toUser(session) {
+            const u = session.user;
+            return {
+                id: u.id,
+                name: u.user_metadata?.username || u.email.split('@')[0],
+                avatar: u.user_metadata?.avatar || AVATARS[0],
+                isGuest: false,
+            };
+        }
+        getSession()
+            .then(session => {
+                if (session) {
+                    setUser(toUser(session));
+                    setScreen('menu');
+                }
+            })
+            .catch(console.error)
+            .finally(() => setChecking(false));
+        const unsubscribe = onAuthChange(session => {
+            if (session) {
+                setUser(toUser(session));
+                setScreen(s => (s === 'auth' ? 'menu' : s));
+            }
+            else {
+                setUser(u => (u?.isGuest ? u : null));
+            }
+        });
+        return unsubscribe;
+    }, []);
+
     function handleAuth(u) {
         setUser(u);
         setScreen('menu');
     }
+
+    async function handleLogout() {
+        try {
+            if (user && !user.isGuest) await signOut();
+        }
+        catch (err) {
+            console.error(err);
+        }
+        setUser(null);
+        setScreen('auth');
+    }
+
     function handleJoinRoom(r) {
         setRoom(r);
         setIsOwner(false);
@@ -86,13 +134,17 @@ export default function App() {
         setRoom(null);
         setScreen('menu');
     }
+
     const categories = room?.categories ?? ['Nome', 'Animal', 'Cidade', 'Cor', 'Fruta'];
     const totalRounds = room?.totalRounds ?? 5;
     const totalTime = room ? (room.difficulty === 'facil' ? 120 : room.difficulty === 'medio' ? 90 : 60) : 90;
+
+    if (checking) return null;
+
     return (<>
       {screen === 'auth' && <AuthScreen onAuth={handleAuth}/>}
 
-      {screen === 'menu' && user && (<MenuScreen user={user} darkMode={darkMode} soundOn={soundOn} onToggleDark={() => setDarkMode(d => !d)} onToggleSound={() => setSoundOn(s => !s)} onBack={() => setScreen('auth')} onJoin={() => setScreen('join-room')} onCreate={() => setScreen('create-room')} onRanking={() => setScreen('ranking')} onProfile={() => setScreen('profile')}/>)}
+      {screen === 'menu' && user && (<MenuScreen user={user} darkMode={darkMode} soundOn={soundOn} onToggleDark={() => setDarkMode(d => !d)} onToggleSound={() => setSoundOn(s => !s)} onBack={handleLogout} onJoin={() => setScreen('join-room')} onCreate={() => setScreen('create-room')} onRanking={() => setScreen('ranking')} onProfile={() => setScreen('profile')}/>)}
 
       {screen === 'join-room' && (<JoinRoomScreen onBack={() => setScreen('menu')} onJoin={handleJoinRoom}/>)}
 
@@ -134,6 +186,7 @@ export default function App() {
       </Modal>
     </>);
 }
+
 function pickLetter(used) {
     const LETTERS = 'ABCDEFGHIJKLMNOPRSTV';
     const available = LETTERS.split('').filter(l => !used.includes(l));
