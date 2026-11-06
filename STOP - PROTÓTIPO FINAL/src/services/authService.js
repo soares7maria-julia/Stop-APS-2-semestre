@@ -1,7 +1,7 @@
 import { supabase } from './supabase'
 
-// Nome e avatar vão em "options.data" (metadados do usuário).
-// O trigger da Pessoa 2 lê esses metadados para criar a linha em profiles.
+// Cadastro: nome e avatar vão em "options.data" (metadados do usuário).
+// O trigger do banco lê esses metadados para criar a linha em profiles.
 export async function signUp({ email, password, username, avatar }) {
   const { data, error } = await supabase.auth.signUp({
     email,
@@ -13,9 +13,16 @@ export async function signUp({ email, password, username, avatar }) {
 }
 
 export async function signIn({ email, password }) {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+  if (error) throw error
+  return data
+}
+
+// Convidado: sessão anônima (sem e-mail). Serve só para o banco saber "quem é quem"
+// nas salas. O app trata essa sessão como convidado: sem perfil, sem ranking.
+export async function signInGuest({ username, avatar }) {
+  const { data, error } = await supabase.auth.signInAnonymously({
+    options: { data: { username, avatar } },
   })
   if (error) throw error
   return data
@@ -26,7 +33,7 @@ export async function signOut() {
   if (error) throw error
 }
 
-// O Supabase guarda a sessão no localStorage, por isso ela sobrevive ao F5
+// O Supabase guarda a sessão no armazenamento do navegador, por isso ela sobrevive ao F5
 export async function getSession() {
   const { data, error } = await supabase.auth.getSession()
   if (error) throw error
