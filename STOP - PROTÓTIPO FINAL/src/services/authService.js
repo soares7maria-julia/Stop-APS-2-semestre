@@ -47,3 +47,11 @@ export function onAuthChange(callback) {
   })
   return () => data.subscription.unsubscribe()
 }
+
+// Atualiza nome e avatar na sessão (metadados) e na tabela profiles
+export async function updateProfile({ userId, username, avatar }) {
+  const { error: authError } = await supabase.auth.updateUser({ data: { username, avatar } })
+  if (authError) throw authError
+  const { error } = await supabase.from('profiles').update({ username, avatar }).eq('id', userId)
+  if (error) throw error
+}

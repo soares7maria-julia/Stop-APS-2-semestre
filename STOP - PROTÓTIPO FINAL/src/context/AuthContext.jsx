@@ -1,8 +1,10 @@
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { AVATARS } from '../components/ui'
 import {
   getSession, onAuthChange, signIn, signUp, signInGuest, signOut,
+  updateProfile as saveProfile,
 } from '../services/authService'
+import { submitScore } from '../services/gameService'
 
 const AuthContext = createContext(null)
 
@@ -23,6 +25,9 @@ export function AuthProvider({ children }) {
   // Pontuação de quem terminou a partida sem conta. Fica só em memória (nada de localStorage):
   // dura enquanto a pessoa vai para o login/cadastro e é enviada ao banco logo depois.
   const [pendingScore, setPendingScore] = useState(null)
+  // Resultado do último envio feito depois do login (para avisar na tela de ranking)
+  const [lastSavedScore, setLastSavedScore] = useState(null)
+  const sendingRef = useRef(null)
 
   useEffect(() => {
     getSession()
@@ -32,6 +37,22 @@ export function AuthProvider({ children }) {
     return onAuthChange(session => setUser(session ? toUser(session) : null))
   }, [])
 
+  // Quando existe pontuação pendente e a pessoa passa a ter conta, envia ao Supabase
+  useEffect(() => {
+    if (!pendingScore || !user || user.isGuest) return
+    if (sendingRef.current === pendingScore) return // evita envio duplicado
+    sendingRef.current = pendingScore
+    submitScore(pendingScore)
+      .then(stats => {
+        setLastSavedScore({ points: pendingScore.points, stats })
+        setPendingScore(null)
+      })
+      .catch(err => {
+        console.error(err)
+        sendingRef.current = null
+      })
+  }, [user, pendingScore])
+
   const value = {
     user,
     loading,
@@ -39,11 +60,13 @@ export function AuthProvider({ children }) {
     isAuthenticated: !!user && !user.isGuest, // conta real
     pendingScore,
     setPendingScore,
-    clearPendingScore: () => setPendingScore(null),
+    lastSavedScore,
+    clearLastSaved: () => setLastSavedScore(null),
     login: signIn,
     register: signUp,
     loginAsGuest: signInGuest,
     logout: signOut,
+    updateProfile: ({ username, avatar }) => saveProfile({ userId: user.id, username, avatar }),
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { Screen, Card, Button, Modal, ToastContainer, useToast } from '../components/ui';
-import { MOCK_GAME_OVER } from '../gameState';
+import React from 'react';
+import { Screen, Card, Button } from '../components/ui';
+
 function Confetti() {
     const PIECES = Array.from({ length: 24 }, (_, i) => i);
     const colors = ['var(--primary)', 'var(--accent)', 'var(--success)', 'var(--warning)'];
@@ -14,19 +14,46 @@ function Confetti() {
             }}/>))}
     </div>);
 }
-export function GameOverScreen({ isOwner, onBack, onNewGame, onMenu }) {
-    const sorted = [...MOCK_GAME_OVER].sort((a, b) => b.score - a.score);
-    const [achievementOpen, setAchievementOpen] = useState(false);
-    const { toasts, add: addToast, remove: removeToast } = useToast();
-    const [first, second, third, ...rest] = sorted;
-    const savedAt = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long' }).format(new Date());
-    useEffect(() => {
-        const notice = setTimeout(() => {
-            addToast('Nova conquista pessoal!', 'success');
-            setAchievementOpen(true);
-        }, 900);
-        return () => clearTimeout(notice);
-    }, []);
+
+// Cartão que informa o que aconteceu com a pontuação da partida
+function SaveStatus({ saveState, savedStats, points, onLogin, onRegister, onRetrySave }) {
+    if (saveState === 'saving') {
+        return (<div className="w-full rounded-2xl bg-[var(--muted)] p-4 text-center">
+        <p className="font-700 text-[var(--foreground)]">Salvando sua pontuação...</p>
+      </div>);
+    }
+    if (saveState === 'saved' && savedStats) {
+        const isRecord = savedStats.best_score === points;
+        return (<div className="w-full rounded-2xl bg-[var(--success)]/10 border border-[var(--success)]/30 p-4 text-center">
+        <p className="font-700 text-[var(--success)]">{isRecord ? 'Novo recorde!' : 'Partida registrada na sua conta'}</p>
+        <p className="text-sm text-[var(--muted-foreground)]">
+          {points} pts nesta partida. Seu recorde: {savedStats.best_score} pts.
+        </p>
+      </div>);
+    }
+    if (saveState === 'error') {
+        return (<div className="w-full rounded-2xl bg-[var(--danger)]/10 border border-[var(--danger)]/30 p-4 text-center">
+        <p className="font-700 text-[var(--danger)]">Não foi possível salvar a pontuação</p>
+        <p className="text-sm text-[var(--muted-foreground)]">Verifique sua conexão e tente de novo.</p>
+        <Button variant="ghost" size="sm" className="mt-2" onClick={onRetrySave}>Tentar novamente</Button>
+      </div>);
+    }
+    if (saveState === 'pending') {
+        return (<div className="w-full rounded-2xl bg-[var(--primary)]/10 border border-[var(--primary)]/30 p-4 text-center">
+        <p className="font-700 text-[var(--foreground)]">Quer registrar essa pontuação no ranking?</p>
+        <p className="text-sm text-[var(--muted-foreground)]">Entre ou crie uma conta. Seus {points} pts ficam guardados só até você sair do site.</p>
+        <div className="flex gap-2 mt-3">
+          <Button variant="secondary" size="sm" className="flex-1" onClick={onLogin}>Entrar</Button>
+          <Button size="sm" className="flex-1" onClick={onRegister}>Criar conta</Button>
+        </div>
+      </div>);
+    }
+    return null;
+}
+
+export function GameOverScreen({ isOwner, players, saveState, savedStats, points, onLogin, onRegister, onRetrySave, onBack, onNewGame, onMenu }) {
+    const sorted = [...players].sort((a, b) => b.score - a.score);
+    const [first, second, third] = sorted;
     return (<Screen>
       <Confetti />
       <button onClick={onBack} className="fixed top-4 left-4 z-30 w-9 h-9 rounded-xl bg-[var(--muted)] hover:bg-[var(--border)] flex items-center justify-center cursor-pointer border-0 text-[var(--foreground)] font-700" aria-label="Voltar">
@@ -38,7 +65,7 @@ export function GameOverScreen({ isOwner, onBack, onNewGame, onMenu }) {
         <div className="text-center">
           <div className="text-6xl mb-2">🏆</div>
           <h1 className="text-5xl text-[var(--primary)]">Fim de Jogo!</h1>
-          <p className="text-[var(--muted-foreground)] font-500 mt-1">Parabéns a todos os jogadores!</p>
+          <p className="text-[var(--muted-foreground)] font-500 mt-1">Você fez {points} pontos</p>
         </div>
 
         {/* Podium */}
@@ -81,11 +108,7 @@ export function GameOverScreen({ isOwner, onBack, onNewGame, onMenu }) {
           </div>
         </Card>
 
-        <div className="w-full rounded-2xl bg-[var(--success)]/10 border border-[var(--success)]/30 p-4 text-center">
-          <p className="font-700 text-[var(--success)]">Partida salva na sua conta</p>
-          <p className="text-sm text-[var(--muted-foreground)]">Pontuação e conquistas registradas em {savedAt}.</p>
-          <Button variant="ghost" size="sm" className="mt-2" onClick={() => setAchievementOpen(true)}>Ver conquistas desbloqueadas</Button>
-        </div>
+        <SaveStatus saveState={saveState} savedStats={savedStats} points={points} onLogin={onLogin} onRegister={onRegister} onRetrySave={onRetrySave}/>
 
         {/* Actions */}
         <div className="flex flex-col gap-3 w-full">
@@ -97,24 +120,5 @@ export function GameOverScreen({ isOwner, onBack, onNewGame, onMenu }) {
           </Button>
         </div>
       </div>
-      <Modal open={achievementOpen} onClose={() => setAchievementOpen(false)} title="Nova conquista pessoal!" size="md">
-        <div className="space-y-3">
-          {[
-              ['Primeira Vitória', 'Vença sua primeira partida'],
-              ['Pontuação Perfeita em uma Rodada', 'Acerte todas as categorias'],
-              ['10 Partidas Jogadas', 'Complete dez partidas'],
-          ].map(([title, description]) => (
-              <div key={title} className="flex items-center gap-3 rounded-2xl bg-[var(--muted)] p-4">
-                <div className="w-10 h-10 rounded-full bg-[var(--warning)]/20 text-[var(--warning)] flex items-center justify-center font-700">✓</div>
-                <div>
-                  <p className="font-700 text-[var(--foreground)]">{title}</p>
-                  <p className="text-sm text-[var(--muted-foreground)]">{description}</p>
-                </div>
-              </div>
-          ))}
-          <Button className="w-full" onClick={() => setAchievementOpen(false)}>Continuar</Button>
-        </div>
-      </Modal>
-      <ToastContainer toasts={toasts} onRemove={removeToast}/>
     </Screen>);
 }

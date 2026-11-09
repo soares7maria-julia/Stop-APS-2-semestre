@@ -1,22 +1,30 @@
 import React, { useState } from 'react';
 import { Button, Modal, Card, StopSign } from '../components/ui';
 import { Screen } from '../components/ui';
-export function MenuScreen({ user, darkMode, soundOn, onToggleDark, onToggleSound, onBack, onJoin, onCreate, onRanking, onProfile }) {
+
+const fmt = n => (n == null ? '—' : Number(n).toLocaleString('pt-BR'));
+
+export function MenuScreen({ user, stats, darkMode, soundOn, onToggleDark, onToggleSound, onLogout, onLogin, onRegister, onJoin, onCreate, onRanking, onProfile }) {
     const [instrOpen, setInstrOpen] = useState(false);
     return (<Screen>
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 pt-4 pb-2">
         <div className="flex items-center gap-2">
-          <button onClick={onBack} className="w-9 h-9 rounded-xl bg-[var(--muted)] hover:bg-[var(--border)] flex items-center justify-center cursor-pointer border-0 text-[var(--foreground)] font-700 flex-shrink-0" aria-label="Voltar">
-            ←
-          </button>
-          <button onClick={onProfile} className="flex items-center gap-2 bg-[var(--card)] border border-[var(--border)] rounded-2xl px-3 py-2 cursor-pointer hover:border-[var(--primary)] transition-all">
-            <span className="text-2xl">{user.avatar}</span>
-            <div className="text-left">
-              <div className="text-xs text-[var(--muted-foreground)] font-600">Bem-vindo,</div>
-              <div className="font-700 text-[var(--foreground)] text-sm leading-tight">{user.name}</div>
-            </div>
-          </button>
+          {user ? (<>
+              <button onClick={onLogout} className="px-3 h-9 rounded-xl bg-[var(--muted)] hover:bg-[var(--border)] flex items-center justify-center cursor-pointer border-0 text-[var(--foreground)] font-700 text-sm flex-shrink-0">
+                Sair
+              </button>
+              <button onClick={onProfile} className="flex items-center gap-2 bg-[var(--card)] border border-[var(--border)] rounded-2xl px-3 py-2 cursor-pointer hover:border-[var(--primary)] transition-all">
+                <span className="text-2xl">{user.avatar}</span>
+                <div className="text-left">
+                  <div className="text-xs text-[var(--muted-foreground)] font-600">Bem-vindo,</div>
+                  <div className="font-700 text-[var(--foreground)] text-sm leading-tight">{user.name}</div>
+                </div>
+              </button>
+            </>) : (<>
+              <Button size="sm" variant="secondary" onClick={onLogin}>Entrar</Button>
+              <Button size="sm" onClick={onRegister}>Criar conta</Button>
+            </>)}
         </div>
         <div className="flex items-center gap-2">
           <button onClick={onToggleSound} className="w-10 h-10 rounded-2xl bg-[var(--card)] border border-[var(--border)] flex items-center justify-center cursor-pointer hover:border-[var(--primary)] transition-all text-lg" title={soundOn ? 'Desligar som' : 'Ligar som'}>
@@ -62,20 +70,24 @@ export function MenuScreen({ user, darkMode, soundOn, onToggleDark, onToggleSoun
           </Card>
         </div>
 
-        {/* Stats strip */}
-        {!user.isGuest && (<div className="flex gap-6 text-center">
+        {(!user || user.isGuest) && (<p className="text-xs text-[var(--muted-foreground)] text-center max-w-xs">
+            Você pode jogar sem conta, mas só quem tem conta registra pontuação no ranking.
+          </p>)}
+
+        {/* Stats strip: dados reais do jogador (zeros até a primeira partida registrada) */}
+        {user && !user.isGuest && (<div className="flex gap-6 text-center">
           <div>
-            <div className="text-2xl font-700 text-[var(--primary)]">47</div>
+            <div className="text-2xl font-700 text-[var(--primary)]">{fmt(stats?.games_played)}</div>
             <div className="text-xs text-[var(--muted-foreground)] font-600">Partidas</div>
           </div>
           <div className="w-px bg-[var(--border)]"/>
           <div>
-            <div className="text-2xl font-700 text-[var(--accent)]">3.850</div>
+            <div className="text-2xl font-700 text-[var(--accent)]">{fmt(stats?.total_points)}</div>
             <div className="text-xs text-[var(--muted-foreground)] font-600">Pontos</div>
           </div>
           <div className="w-px bg-[var(--border)]"/>
           <div>
-            <div className="text-2xl font-700 text-[var(--success)]">12</div>
+            <div className="text-2xl font-700 text-[var(--success)]">{fmt(stats?.wins)}</div>
             <div className="text-xs text-[var(--muted-foreground)] font-600">Vitórias</div>
           </div>
         </div>)}
