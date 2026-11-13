@@ -1,18 +1,29 @@
 import React, { useState } from 'react';
 import { Screen, TopBar, Card, Button, Input, Toggle, Select, CategoryChip } from '../components/ui';
 import { DEFAULT_CATEGORIES, DIFFICULTY_CONFIG } from '../gameState';
+import { createRoom } from '../services/roomService';
+import { roomSchema, validate } from '../lib/schemas';
+import { traduzirErroSala } from '../lib/roomErrors';
+
+const MAX_CATEGORIES = 12;
+
 export function CreateRoomScreen({ onBack, onCreated, user }) {
     const [roomName, setRoomName] = useState(`Sala de ${user.name}`);
+    const [nameError, setNameError] = useState('');
     const [isPrivate, setIsPrivate] = useState(false);
-    const [password, setPassword] = useState('');
     const [maxPlayers, setMaxPlayers] = useState('6');
     const [difficulty, setDifficulty] = useState('medio');
     const [totalRounds, setTotalRounds] = useState('5');
     const [categories, setCategories] = useState(DEFAULT_CATEGORIES.slice(0, 5));
     const [newCat, setNewCat] = useState('');
+    const [creating, setCreating] = useState(false);
+    const [createError, setCreateError] = useState('');
+
     function addCategory() {
-        const cat = newCat.trim();
-        if (!cat || categories.includes(cat))
+        const cat = newCat.trim().slice(0, 20);
+        if (!cat || categories.length >= MAX_CATEGORIES)
+            return;
+        if (categories.some(c => c.toLocaleLowerCase('pt-BR') === cat.toLocaleLowerCase('pt-BR')))
             return;
         setCategories(prev => [...prev, cat]);
         setNewCat('');
@@ -23,25 +34,39 @@ export function CreateRoomScreen({ onBack, onCreated, user }) {
         setCategories(prev => prev.filter(c => c !== cat));
     }
     function addDefault(cat) {
-        if (!categories.includes(cat))
+        if (!categories.includes(cat) && categories.length < MAX_CATEGORIES)
             setCategories(prev => [...prev, cat]);
     }
-    function handleCreate() {
-        const room = {
-            id: Math.random().toString(36).slice(2),
-            name: roomName || `Sala de ${user.name}`,
-            code: Math.random().toString(36).slice(2, 8).toUpperCase(),
-            isPrivate,
-            password: isPrivate ? password : undefined,
-            maxPlayers: parseInt(maxPlayers),
-            difficulty,
-            totalRounds: parseInt(totalRounds),
-            categories,
-            players: [{ id: 'you', name: user.name, avatar: user.avatar, isOwner: true, status: 'aguardando', score: 0 }],
-            status: 'aguardando',
-        };
-        onCreated(room);
+
+    // O código da sala é gerado pelo Supabase; sala privada não tem senha (acesso por código/link)
+    async function handleCreate() {
+        setCreateError('');
+        const result = validate(roomSchema, { name: roomName });
+        setNameError(result.errors.name ?? '');
+        if (!result.data)
+            return;
+        setCreating(true);
+        try {
+            const room = await createRoom({
+                name: result.data.name,
+                isPrivate,
+                maxPlayers: parseInt(maxPlayers),
+                difficulty,
+                totalRounds: parseInt(totalRounds),
+                categories,
+                user,
+            });
+            onCreated(room);
+        }
+        catch (err) {
+            console.error(err);
+            setCreateError(traduzirErroSala(err));
+        }
+        finally {
+            setCreating(false);
+        }
     }
+
     const diff = DIFFICULTY_CONFIG[difficulty];
     const available = DEFAULT_CATEGORIES.filter(c => !categories.includes(c));
     return (<Screen>
@@ -51,17 +76,15 @@ export function CreateRoomScreen({ onBack, onCreated, user }) {
         {/* Basic config */}
         <Card className="p-5 space-y-4">
           <h2 className="text-xl text-[var(--foreground)]">⚙️ Configurações</h2>
-          <Input label="Nome da sala" value={roomName} onChange={e => setRoomName(e.target.value)} placeholder="Dê um nome à sua sala..."/>
+          <Input label="Nome da sala" value={roomName} onChange={e => { setRoomName(e.target.value); setNameError(''); }} error={nameError} placeholder="Dê um nome à sua sala..."/>
 
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-4">
             <div>
               <div className="font-700 text-[var(--foreground)]">Sala Privada</div>
-              <div className="text-xs text-[var(--muted-foreground)]">Apenas quem tiver o código e senha pode entrar</div>
+              <div className="text-xs text-[var(--muted-foreground)]">Não aparece na lista de salas públicas. Só entra quem tiver o código ou o link de convite, que o jogo gera automaticamente.</div>
             </div>
             <Toggle checked={isPrivate} onChange={setIsPrivate}/>
           </div>
-
-          {isPrivate && (<Input label="Senha da sala" type="password" placeholder="Defina uma senha..." value={password} onChange={e => setPassword(e.target.value)}/>)}
         </Card>
 
         {/* Game config */}
@@ -103,12 +126,12 @@ export function CreateRoomScreen({ onBack, onCreated, user }) {
 
           {/* Add custom */}
           <div className="flex gap-2">
-            <Input placeholder="Nova categoria..." value={newCat} onChange={e => setNewCat(e.target.value)} onKeyDown={e => e.key === 'Enter' && addCategory()} className="flex-1"/>
-            <Button variant="secondary" onClick={addCategory} disabled={!newCat.trim()}>+ Adicionar</Button>
+            <Input placeholder="Nova categoria..." value={newCat} onChange={e => setNewCat(e.target.value)} onKeyDown={e => e.key === 'Enter' && addCategory()} maxLength={20} className="flex-1"/>
+            <Button variant="secondary" onClick={addCategory} disabled={!newCat.trim() || categories.length >= MAX_CATEGORIES}>+ Adicionar</Button>
           </div>
 
           {/* Quick-add defaults */}
-          {available.length > 0 && (<div>
+          {available.length > 0 && categories.length < MAX_CATEGORIES && (<div>
               <p className="text-xs text-[var(--muted-foreground)] font-600 mb-2">Adicionar rapidamente:</p>
               <div className="flex flex-wrap gap-2">
                 {available.map(c => (<button key={c} onClick={() => addDefault(c)} className="text-xs bg-[var(--muted)] hover:bg-[var(--secondary)] text-[var(--foreground)] px-2.5 py-1 rounded-full cursor-pointer border border-[var(--border)] font-600 transition-all">
@@ -118,8 +141,9 @@ export function CreateRoomScreen({ onBack, onCreated, user }) {
             </div>)}
         </Card>
 
-        <Button size="xl" className="w-full" onClick={handleCreate} disabled={categories.length < 2}>
-          🚀 Criar Sala
+        {createError && <p className="text-sm text-[var(--danger)] text-center">{createError}</p>}
+        <Button size="xl" className="w-full" onClick={handleCreate} disabled={categories.length < 2 || creating}>
+          {creating ? 'Criando...' : '🚀 Criar Sala'}
         </Button>
       </div>
     </Screen>);

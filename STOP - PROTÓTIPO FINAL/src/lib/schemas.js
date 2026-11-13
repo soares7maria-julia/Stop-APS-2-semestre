@@ -29,6 +29,21 @@ export const guestSchema = z.object({
 
 export const profileSchema = z.object({ username })
 
+export const roomSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(2, 'O nome da sala deve ter pelo menos 2 caracteres.')
+    .max(40, 'O nome da sala pode ter no máximo 40 caracteres.'),
+})
+
+export const roomCodeSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z0-9]{6}$/, 'O código da sala tem 6 letras ou números.'),
+})
+
 // Roda o schema e devolve { data, errors }, com errors = { campo: 'mensagem' }
 // (uma mensagem por campo, para mostrar junto do input correspondente)
 export function validate(schema, values) {

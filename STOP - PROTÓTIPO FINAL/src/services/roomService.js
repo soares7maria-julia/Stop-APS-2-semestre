@@ -1,6 +1,24 @@
 import { supabase } from './supabase'
 
-// A rota /entrar/:code será criada junto com as telas de sala
+// Converte a linha do banco (snake_case) no formato que as telas usam
+export function toRoom(row) {
+  if (!row) return null
+  return {
+    id: row.id,
+    code: row.code,
+    name: row.name,
+    ownerId: row.owner_id,
+    isPrivate: row.is_private ?? false,
+    maxPlayers: row.max_players,
+    difficulty: row.difficulty,
+    totalRounds: row.total_rounds,
+    categories: row.categories ?? [],
+    status: row.status ?? 'waiting',
+    playerCount: row.player_count != null ? Number(row.player_count) : undefined,
+  }
+}
+
+// Link de convite: abre /entrar/:code, que coloca a pessoa na sala
 export function buildInviteLink(code) {
   return `${window.location.origin}/entrar/${code}`
 }
@@ -9,7 +27,7 @@ export function buildInviteLink(code) {
 export async function listPublicRooms() {
   const { data, error } = await supabase.rpc('list_public_rooms')
   if (error) throw error
-  return data ?? []
+  return (data ?? []).map(toRoom)
 }
 
 // Tempo real: avisa quando qualquer sala é criada, alterada ou excluída.
@@ -36,7 +54,7 @@ export async function createRoom({ name, isPrivate, totalRounds, difficulty, cat
     p_avatar: user.avatar,
   })
   if (error) throw error
-  return data // linha da sala, com o código gerado
+  return toRoom(data)
 }
 
 export async function joinRoomByCode(code, user) {
@@ -46,13 +64,14 @@ export async function joinRoomByCode(code, user) {
     p_avatar: user.avatar,
   })
   if (error) throw error
-  return data
+  return toRoom(data)
 }
 
+// Acha a sala pelo código sem entrar (null se não existe mais ou venceu)
 export async function findRoomByCode(code) {
   const { data, error } = await supabase.rpc('find_room_by_code', { p_code: code })
   if (error) throw error
-  return data?.[0] ?? null
+  return toRoom(data?.[0] ?? null)
 }
 
 export async function getRoomPlayers(roomId) {
@@ -71,22 +90,29 @@ export async function deleteRoom(roomId) {
   if (error) throw error
 }
 
-export async function leaveRoom(roomId, userId) {
+// Sair da sala, ou (sendo o dono) remover um jogador
+export async function leaveRoom(roomId, playerId) {
   const { error } = await supabase
     .from('room_players')
     .delete()
     .eq('room_id', roomId)
-    .eq('player_id', userId)
+    .eq('player_id', playerId)
   if (error) throw error
 }
 
 // O jogador marca/desmarca o próprio "pronto"
-export async function setReady(roomId, userId, ready) {
+export async function setReady(roomId, playerId, ready) {
   const { error } = await supabase
     .from('room_players')
     .update({ is_ready: ready })
     .eq('room_id', roomId)
-    .eq('player_id', userId)
+    .eq('player_id', playerId)
+  if (error) throw error
+}
+
+// Dono inicia a partida: a sala sai da lista pública e ninguém mais entra
+export async function startRoom(roomId) {
+  const { error } = await supabase.from('rooms').update({ status: 'playing' }).eq('id', roomId)
   if (error) throw error
 }
 
@@ -105,7 +131,19 @@ export function subscribeToRoom(roomId, onChange) {
       () => onChange())
     .on('postgres_changes',
       { event: '*', schema: 'public', table: 'rooms', filter: `id=eq.${roomId}` },
-      payload => onChange(payload))
+      () => onChange())
     .subscribe()
   return () => supabase.removeChannel(channel)
+}
+
+// Chat do lobby por Realtime Broadcast: as mensagens não são gravadas no banco
+export function joinRoomChat(roomId, onMessage) {
+  const channel = supabase
+    .channel(`chat-${roomId}`, { config: { broadcast: { self: true } } })
+    .on('broadcast', { event: 'message' }, ({ payload }) => onMessage(payload))
+    .subscribe()
+  return {
+    send: message => channel.send({ type: 'broadcast', event: 'message', payload: message }),
+    leave: () => supabase.removeChannel(channel),
+  }
 }

@@ -7,6 +7,7 @@ import { LoginPage } from './pages/LoginPage'
 import { RegisterPage } from './pages/RegisterPage'
 import { GuestPage } from './pages/GuestPage'
 import { GamePage } from './pages/GamePage'
+import { InvitePage } from './pages/InvitePage'
 import { RankingPage } from './pages/RankingPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { NotFoundPage } from './pages/NotFoundPage'
@@ -30,6 +31,7 @@ export default function App() {
       <Route path="/cadastro" element={<RegisterPage/>}/>
       <Route path="/convidado" element={<GuestPage/>}/>
       <Route path="/jogo" element={<GamePage/>}/>
+      <Route path="/entrar/:code" element={<InvitePage/>}/>
       <Route path="/ranking" element={<RankingPage/>}/>
       <Route path="/perfil" element={<ProtectedRoute><ProfilePage/></ProtectedRoute>}/>
       <Route path="*" element={<NotFoundPage/>}/>

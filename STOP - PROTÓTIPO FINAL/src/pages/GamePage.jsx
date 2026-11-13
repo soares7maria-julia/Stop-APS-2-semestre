@@ -12,17 +12,21 @@ import { GameOverScreen } from '../screens/GameOverScreen'
 import { Modal } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
 import { submitScore } from '../services/gameService'
+import { deleteRoom, leaveRoom } from '../services/roomService'
 import { scoreRound } from '../lib/scoring'
 
-// Mantém o fluxo do jogo (as mesmas telas de antes). Cada tela continua com as props que já tinha.
+// Fluxo do jogo: salas (reais, no Supabase) e rodadas.
+// Quem chega pelo link de convite já vem com a sala em location.state.room.
 export function GamePage() {
   const { user, isAuthenticated, setPendingScore } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
+  const initialRoom = location.state?.room ?? null
 
-  const [screen, setScreen] = useState(location.state?.start ?? 'join-room')
-  const [room, setRoom] = useState(null)
-  const [isOwner, setIsOwner] = useState(true)
+  const [screen, setScreen] = useState(initialRoom ? 'lobby' : (location.state?.start ?? 'join-room'))
+  const [room, setRoom] = useState(initialRoom)
+  const [isOwner, setIsOwner] = useState(!!initialRoom && !!user && initialRoom.ownerId === user.id)
+  const [roomPlayers, setRoomPlayers] = useState([])
   const [currentRound, setCurrentRound] = useState(1)
   const [usedLetters, setUsedLetters] = useState([])
   const [currentLetter, setCurrentLetter] = useState('B')
@@ -49,22 +53,18 @@ export function GamePage() {
     setSavedStats(null)
   }
 
-  function handleJoinRoom(r) {
+  // Vale para sala criada e para sala em que se entrou
+  function enterRoom(r) {
     setRoom(r)
-    setIsOwner(false)
+    setIsOwner(r.ownerId === user.id)
     resetGame()
     setScreen('lobby')
   }
-  function handleCreateRoom(r) {
-    setRoom(r)
-    setIsOwner(true)
-    resetGame()
-    setScreen('lobby')
-  }
-  function startGame() {
-    const letter = pickLetter(usedLetters)
+  function startGame(list) {
+    setRoomPlayers(list)
+    const letter = pickLetter([])
     setCurrentLetter(letter)
-    setUsedLetters(prev => [...prev, letter])
+    setUsedLetters([letter])
     setScreen('letter-draw')
   }
   function handleStop(answers, reason = 'stop') {
@@ -80,7 +80,7 @@ export function GamePage() {
 
   // Fim da partida: com conta, grava no Supabase; sem conta, guarda a pontuação em memória (Context)
   async function finishGame() {
-    // "won" passa a valer quando houver outros jogadores reais na partida (tempo real)
+    // "won" passa a valer quando houver outros jogadores jogando a mesma rodada
     const summary = { points: totalScore, won: false, players: 1, rounds: totalRounds }
     if (!isAuthenticated) {
       setPendingScore(summary)
@@ -117,7 +117,17 @@ export function GamePage() {
     setUsedLetters([letter])
     setScreen('letter-draw')
   }
-  function handleLeave() {
+
+  // Sair: o dono exclui a sala; quem não é dono apenas sai dela
+  async function handleLeave() {
+    try {
+      if (room) {
+        if (isOwner) await deleteRoom(room.id)
+        else await leaveRoom(room.id, user.id)
+      }
+    } catch (err) {
+      console.error(err)
+    }
     setRoom(null)
     navigate('/')
   }
@@ -125,28 +135,28 @@ export function GamePage() {
   const players = [{ playerId: 'you', name: user.name, avatar: user.avatar, score: totalScore }]
 
   return (<>
-    {screen === 'join-room' && (<JoinRoomScreen onBack={() => navigate('/')} onJoin={handleJoinRoom}/>)}
+    {screen === 'join-room' && (<JoinRoomScreen user={user} onBack={() => navigate('/')} onJoin={enterRoom} onCreate={() => setScreen('create-room')}/>)}
 
-    {screen === 'create-room' && (<CreateRoomScreen onBack={() => navigate('/')} onCreated={handleCreateRoom} user={user}/>)}
+    {screen === 'create-room' && (<CreateRoomScreen onBack={() => navigate('/')} onCreated={enterRoom} user={user}/>)}
 
     {screen === 'lobby' && room && (<LobbyScreen room={room} user={user} isOwner={isOwner} onStart={startGame} onLeave={handleLeave}/>)}
 
     {screen === 'letter-draw' && (<LetterDrawScreen currentRound={currentRound} totalRounds={totalRounds} letter={currentLetter} usedLetters={usedLetters} onComplete={() => setScreen('round')}/>)}
 
-    {screen === 'round' && room && (<RoundScreen currentRound={currentRound} totalRounds={totalRounds} categories={categories} letter={currentLetter} usedLetters={usedLetters.slice(0, -1)} totalTime={totalTime} difficulty={room.difficulty} isOwner={isOwner} user={user} onLeave={handleLeave} onStop={handleStop} onInstructions={() => setInstrOpen(true)}/>)}
+    {screen === 'round' && (<RoundScreen currentRound={currentRound} totalRounds={totalRounds} categories={categories} letter={currentLetter} usedLetters={usedLetters.slice(0, -1)} totalTime={totalTime} difficulty={room?.difficulty ?? 'medio'} isOwner={isOwner} user={user} players={roomPlayers} onLeave={handleLeave} onStop={handleStop} onInstructions={() => setInstrOpen(true)}/>)}
 
     {screen === 'round-end' && (<RoundEndScreen reason={stopReason} stoppedBy="Você" onComplete={() => setScreen('review')}/>)}
 
-    {screen === 'review' && (<ReviewScreen currentRound={currentRound} totalRounds={totalRounds} letter={currentLetter} categories={categories} answers={roundAnswers} onBack={() => setScreen('round-end')} onFinish={handleReviewFinish}/>)}
+    {screen === 'review' && (<ReviewScreen currentRound={currentRound} totalRounds={totalRounds} letter={currentLetter} categories={categories} answers={roundAnswers} user={user} onBack={() => setScreen('round-end')} onFinish={handleReviewFinish}/>)}
 
     {screen === 'round-result' && (<RoundResultScreen currentRound={currentRound} totalRounds={totalRounds} letter={currentLetter} categories={categories} isLastRound={currentRound >= totalRounds} user={user} roundResult={currentRoundResult} totalScore={totalScore} onBack={() => setScreen('review')} onNext={handleNextRound}/>)}
 
-    {screen === 'game-over' && (<GameOverScreen isOwner={isOwner} players={players} saveState={saveState} savedStats={savedStats} points={totalScore} onLogin={() => navigate('/login')} onRegister={() => navigate('/cadastro')} onRetrySave={finishGame} onBack={() => setScreen('round-result')} onNewGame={handleNewGame} onMenu={() => navigate('/')}/>)}
+    {screen === 'game-over' && (<GameOverScreen isOwner={isOwner} players={players} saveState={saveState} savedStats={savedStats} points={totalScore} onLogin={() => navigate('/login')} onRegister={() => navigate('/cadastro')} onRetrySave={finishGame} onBack={() => setScreen('round-result')} onNewGame={handleNewGame} onMenu={handleLeave}/>)}
 
     <Modal open={instrOpen} onClose={() => setInstrOpen(false)} title="📖 Como Jogar" size="md">
       <div className="space-y-4 text-[var(--card-foreground)]">
         <p className="text-sm text-[var(--muted-foreground)]">
-          Uma letra é sorteada a cada rodada. Preencha uma palavra começando com ela para cada categoria. Quando terminar, pressione <strong>STOP!</strong> para encerrar a rodada para todos.
+          Uma letra é sorteada a cada rodada. Preencha uma palavra começando com ela para cada categoria. Quando terminar, pressione <strong>STOP!</strong> para encerrar a rodada.
         </p>
         <div className="bg-[var(--muted)] rounded-2xl p-4">
           <p className="font-700 text-sm text-[var(--foreground)] mb-2">💡 Pontuação</p>

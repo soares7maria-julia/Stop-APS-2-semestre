@@ -1,69 +1,81 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Screen, Button, Modal, PlayerCard } from '../components/ui';
 import { useToast, ToastContainer } from '../components/ui';
-import { MOCK_LOBBY_PLAYERS, DIFFICULTY_CONFIG } from '../gameState';
-export function RoundScreen({ currentRound, totalRounds, categories, letter, usedLetters, totalTime, difficulty, isOwner, user, onLeave, onStop, onInstructions }) {
+import { DIFFICULTY_CONFIG } from '../gameState';
+import { isValidAnswer, normalizeText } from '../lib/scoring';
+
+export function RoundScreen({ currentRound, totalRounds, categories, letter, usedLetters, totalTime, difficulty, isOwner, user, players, onLeave, onStop, onInstructions }) {
     const [phase, setPhase] = useState('playing');
-    const [answers, setAnswers] = useState({});
+    // Cada campo já começa com a letra sorteada
+    const [answers, setAnswers] = useState(() => Object.fromEntries(categories.map(cat => [cat, letter])));
     const [timeLeft, setTimeLeft] = useState(totalTime);
     const [leaveModal, setLeaveModal] = useState(false);
     const [validationAttempted, setValidationAttempted] = useState(false);
-    const [players, setPlayers] = useState(MOCK_LOBBY_PLAYERS.map(player => player.id === 'you' ? { ...player, name: user.name, avatar: user.avatar, isOwner, status: 'digitando' } : { ...player, status: 'digitando' }));
     const { toasts, add: addToast, remove: removeToast } = useToast();
-    const timerRef = useRef(null);
-    // Timer
+    const answersRef = useRef(answers);
+    answersRef.current = answers; // o fim do tempo precisa das respostas mais recentes
+    const stopTimeoutRef = useRef(null);
+
+    // Relógio
     useEffect(() => {
         if (phase !== 'playing')
             return;
-        timerRef.current = setInterval(() => {
-            setTimeLeft(t => {
-                if (t <= 1) {
-                    clearInterval(timerRef.current);
-                    setPhase('timeout');
-                    addToast('⏰ Tempo esgotado!', 'warning');
-                    setTimeout(() => onStop(answers, 'timeout'), 900);
-                    return 0;
-                }
-                if (t === Math.floor(totalTime * 0.25) + 1)
-                    addToast('⚡ Menos de 25% do tempo!', 'warning');
-                return t - 1;
-            });
-        }, 1000);
-        return () => clearInterval(timerRef.current);
+        const id = setInterval(() => setTimeLeft(t => Math.max(t - 1, 0)), 1000);
+        return () => clearInterval(id);
     }, [phase]);
+
+    // Avisos e fim do tempo
+    useEffect(() => {
+        if (phase !== 'playing')
+            return;
+        if (timeLeft === 0) {
+            setPhase('timeout');
+            addToast('⏰ Tempo esgotado!', 'warning');
+            stopTimeoutRef.current = setTimeout(() => onStop(answersRef.current, 'timeout'), 900);
+        }
+        else if (timeLeft === Math.floor(totalTime * 0.25)) {
+            addToast('⚡ Menos de 25% do tempo!', 'warning');
+        }
+    }, [timeLeft, phase]);
+
+    useEffect(() => () => clearTimeout(stopTimeoutRef.current), []);
+
     function handleStop() {
         if (phase !== 'playing')
             return;
         if (!allAnswersValid) {
             setValidationAttempted(true);
-            addToast(`Preencha todos os campos com palavras que comecem com a letra ${letter} para dar STOP!`, 'error');
+            addToast(`Complete todos os campos com palavras que comecem com a letra ${letter} para dar STOP!`, 'error');
             return;
         }
-        clearInterval(timerRef.current);
-        setPlayers(prev => prev.map(player => player.id === 'you' ? { ...player, status: 'pronto' } : player));
         addToast('Você pressionou STOP!', 'success');
         setPhase('sending');
-        setTimeout(() => onStop(answers, 'stop'), 900);
+        stopTimeoutRef.current = setTimeout(() => onStop(answersRef.current, 'stop'), 900);
     }
+
+    // A letra sorteada fica sempre no começo da palavra
     function setAnswer(cat, val) {
-        setAnswers(prev => ({ ...prev, [cat]: val }));
+        let v = val.replace(/^\s+/, '');
+        if (!v)
+            v = letter;
+        else if (normalizeText(v[0]) === normalizeText(letter))
+            v = v[0].toLocaleUpperCase('pt-BR') + v.slice(1);
+        else
+            v = letter + v;
+        setAnswers(prev => ({ ...prev, [cat]: v }));
     }
     function validateAnswer(value) {
-        if (value.trim() && value.trim().toLocaleUpperCase('pt-BR').startsWith(letter))
+        if (isValidAnswer(value, letter))
             addToast('Palavra válida!', 'success');
     }
-    function kickPlayer(id) {
-        setPlayers(prev => prev.filter(player => player.id !== id));
-        addToast('Jogador removido da partida.', 'info');
-    }
+
     const timerPct = (timeLeft / totalTime) * 100;
     const timerColor = timerPct > 50 ? 'var(--success)' : timerPct > 25 ? 'var(--warning)' : 'var(--danger)';
-    const filled = Object.values(answers).filter(v => v.trim()).length;
-    const isAnswerValid = (category) => {
-        const value = answers[category]?.trim();
-        return !!value && value.toLocaleUpperCase('pt-BR').startsWith(letter);
-    };
+    const filled = categories.filter(cat => (answers[cat] ?? '').trim().length > 1).length;
+    const isAnswerValid = (category) => isValidAnswer(answers[category], letter);
     const allAnswersValid = categories.every(isAnswerValid);
+    const roomPlayers = players && players.length ? players : [{ id: user.id, name: user.name, avatar: user.avatar, isOwner }];
+
     return (<Screen>
       <div className="sticky top-0 z-20 bg-[var(--card)]/90 backdrop-blur border-b border-[var(--border)] px-4 py-3">
         <div className="flex items-center justify-between mb-2">
@@ -100,27 +112,29 @@ export function RoundScreen({ currentRound, totalRounds, categories, letter, use
           </div>
 
         {/* Phase overlay messages */}
-        {(phase === 'stopped' || phase === 'sending' || phase === 'timeout') && (<div className={`rounded-2xl p-4 text-center font-700 text-lg animate-fade-in ${phase === 'timeout' ? 'bg-[var(--warning)]/20 text-[var(--warning)]' : 'bg-[var(--success)]/20 text-[var(--success)]'}`}>
+        {(phase === 'sending' || phase === 'timeout') && (<div className={`rounded-2xl p-4 text-center font-700 text-lg animate-fade-in ${phase === 'timeout' ? 'bg-[var(--warning)]/20 text-[var(--warning)]' : 'bg-[var(--success)]/20 text-[var(--success)]'}`}>
             {phase === 'timeout' ? '⏰ Tempo esgotado! Enviando respostas...' : '🛑 STOP! Enviando respostas...'}
           </div>)}
 
         {/* Answer fields */}
         <div className="space-y-3">
-            {categories.map(cat => (<div key={cat} className="flex items-center gap-3">
+            {categories.map((cat, index) => {
+            const value = answers[cat] ?? '';
+            const hasWord = value.trim().length > 1;
+            return (<div key={cat} className="flex items-center gap-3">
                 <span className="text-sm font-700 text-[var(--muted-foreground)] w-20 flex-shrink-0 text-right">{cat}</span>
                 <div className="flex-1 relative">
-                  <input value={answers[cat] || ''} onChange={e => setAnswer(cat, e.target.value)} onBlur={e => validateAnswer(e.target.value)} disabled={phase !== 'playing'} placeholder={`${letter}...`} className={`w-full px-4 py-3 rounded-xl border-2 bg-[var(--card)] text-[var(--card-foreground)] font-600 focus:outline-none transition-all ${answers[cat]?.trim()
-                    ? isAnswerValid(cat)
-                        ? 'border-[var(--success)] bg-[var(--success)]/5'
-                        : validationAttempted
-                            ? 'border-[var(--danger)] bg-[var(--danger)]/5'
-                            : 'border-[var(--border)] focus:border-[var(--primary)]'
+                  <input value={value} onChange={e => setAnswer(cat, e.target.value)} onBlur={e => validateAnswer(e.target.value)} onFocus={e => { const end = e.target.value.length; e.target.setSelectionRange(end, end); }} autoFocus={index === 0} autoComplete="off" disabled={phase !== 'playing'} className={`w-full px-4 py-3 rounded-xl border-2 bg-[var(--card)] text-[var(--card-foreground)] font-600 focus:outline-none transition-all ${isAnswerValid(cat)
+                    ? 'border-[var(--success)] bg-[var(--success)]/5'
                     : validationAttempted
                         ? 'border-[var(--danger)] bg-[var(--danger)]/5'
-                    : 'border-[var(--border)] focus:border-[var(--primary)]'} disabled:opacity-70`}/>
+                        : hasWord
+                            ? 'border-[var(--border)] focus:border-[var(--primary)]'
+                            : 'border-[var(--border)] focus:border-[var(--primary)]'} disabled:opacity-70`}/>
                   {isAnswerValid(cat) && (<span className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--success)]">✓</span>)}
                 </div>
-              </div>))}
+              </div>);
+        })}
           </div>
 
         {/* STOP button */}
@@ -132,26 +146,26 @@ export function RoundScreen({ currentRound, totalRounds, categories, letter, use
         <aside className="lg:w-80 space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-lg text-[var(--foreground)]">Jogadores na sala</h2>
-            <span className="text-xs text-[var(--muted-foreground)]">{players.length} online</span>
+            <span className="text-xs text-[var(--muted-foreground)]">{roomPlayers.length}</span>
           </div>
           <div className="space-y-2">
-            {players.map(player => <PlayerCard key={player.id} {...player} isYou={player.id === 'you'} onKick={isOwner && player.id !== 'you' ? () => kickPlayer(player.id) : undefined}/>)}
+            {roomPlayers.map(player => <PlayerCard key={player.id} name={player.name} avatar={player.avatar} isOwner={player.isOwner} isYou={player.id === user.id}/>)}
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-1 gap-2 pt-2">
             <Button variant="secondary" size="sm" onClick={onInstructions}>Instruções</Button>
-            <Button variant="danger" size="sm" onClick={() => setLeaveModal(true)}>Sair da sala</Button>
+            <Button variant="danger" size="sm" onClick={() => setLeaveModal(true)}>{isOwner ? 'Excluir sala' : 'Sair da sala'}</Button>
           </div>
         </aside>
       </div>
 
-      <Modal open={leaveModal} onClose={() => setLeaveModal(false)} title={isOwner ? 'Fechar a sala?' : 'Sair da sala?'} size="sm">
+      <Modal open={leaveModal} onClose={() => setLeaveModal(false)} title={isOwner ? 'Excluir a sala?' : 'Sair da sala?'} size="sm">
         <div className="space-y-4">
           <p className="text-[var(--muted-foreground)]">
-            {isOwner ? 'Como dono, sair encerrará a sala e todos serão redirecionados ao menu principal.' : 'Suas respostas desta rodada não serão salvas. Deseja continuar?'}
+            {isOwner ? 'Como dono, sair exclui a sala para todos os jogadores.' : 'Suas respostas desta rodada não serão salvas. Deseja continuar?'}
           </p>
           <div className="flex gap-3">
             <Button variant="secondary" className="flex-1" onClick={() => setLeaveModal(false)}>Cancelar</Button>
-            <Button variant="danger" className="flex-1" onClick={onLeave}>{isOwner ? 'Fechar sala' : 'Sair'}</Button>
+            <Button variant="danger" className="flex-1" onClick={onLeave}>{isOwner ? 'Excluir sala' : 'Sair'}</Button>
           </div>
         </div>
       </Modal>
