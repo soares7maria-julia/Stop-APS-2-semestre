@@ -10,30 +10,34 @@ export async function submitScore({ points, won = false, players = 1, rounds = 1
     p_rounds: rounds,
   })
   if (error) throw error
-  return data
+  return data // linha de player_stats: { best_score, games_played, games_won, ... }
 }
 
 // Ranking público, ordenado pelo recorde (desempate: quem chegou primeiro nele)
 export async function getRanking(limit = 50) {
-  const { data, error } = await supabase
-    .from('player_stats')
-    .select('user_id, display_name, avatar, best_score, games_played, wins')
-    .order('best_score', { ascending: false })
-    .order('updated_at', { ascending: true })
-    .limit(limit)
+  const { data, error } = await supabase.rpc('get_ranking', { p_limit: limit })
   if (error) throw error
-  return data ?? []
+  return (data ?? []).map(r => ({
+    user_id: r.player_id,
+    display_name: r.display_name,
+    avatar: r.avatar,
+    best_score: r.best_score,
+    games_played: r.games_played,
+    wins: r.games_won,
+  }))
 }
 
 // Estatísticas do perfil. Quem nunca jogou recebe zeros (nunca dados inventados).
-export async function getMyStats(userId) {
-  const { data, error } = await supabase
-    .from('player_stats')
-    .select('games_played, total_points, wins, best_score')
-    .eq('user_id', userId)
-    .maybeSingle()
+export async function getMyStats() {
+  const { data, error } = await supabase.rpc('get_my_stats')
   if (error) throw error
-  return data ?? { games_played: 0, total_points: 0, wins: 0, best_score: 0 }
+  const row = data?.[0]
+  return {
+    games_played: row?.games_played ?? 0,
+    total_points: Number(row?.total_points ?? 0),
+    wins: row?.games_won ?? 0,
+    best_score: row?.best_score ?? 0,
+  }
 }
 
 // Últimas partidas do próprio jogador
@@ -41,7 +45,7 @@ export async function getMyHistory(userId, limit = 10) {
   const { data, error } = await supabase
     .from('game_history')
     .select('id, points, won, players, rounds, played_at')
-    .eq('user_id', userId)
+    .eq('player_id', userId)
     .order('played_at', { ascending: false })
     .limit(limit)
   if (error) throw error
