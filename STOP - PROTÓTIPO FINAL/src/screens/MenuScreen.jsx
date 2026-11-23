@@ -27,7 +27,7 @@ export function MenuScreen({ user, stats, darkMode, soundOn, onToggleDark, onTog
             </>)}
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={onToggleSound} className="w-10 h-10 rounded-2xl bg-[var(--card)] border border-[var(--border)] flex items-center justify-center cursor-pointer hover:border-[var(--primary)] transition-all text-lg" title={soundOn ? 'Desligar som' : 'Ligar som'}>
+          <button onClick={onToggleSound} className="w-10 h-10 rounded-2xl bg-[var(--card)] border border-[var(--border)] flex items-center justify-center cursor-pointer hover:border-[var(--primary)] transition-all text-lg" title={soundOn ? 'Desligar música e efeitos' : 'Ligar música e efeitos'} aria-label={soundOn ? 'Desligar música e efeitos' : 'Ligar música e efeitos'}>
             {soundOn ? '🔊' : '🔇'}
           </button>
           <button onClick={onToggleDark} className="w-10 h-10 rounded-2xl bg-[var(--card)] border border-[var(--border)] flex items-center justify-center cursor-pointer hover:border-[var(--primary)] transition-all text-lg" title={darkMode ? 'Modo claro' : 'Modo escuro'}>

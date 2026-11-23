@@ -4,7 +4,7 @@ import { getRoomPlayers, findRoomByCode, subscribeToRoom, touchRoom, setReady as
 
 const nowTime = () => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
-export function LobbyScreen({ room, user, isOwner, onStart, onLeave }) {
+export function LobbyScreen({ room, user, isOwner, onStart, onRoomStarted, onLeave }) {
     const [players, setPlayers] = useState([]);
     const [roomStatus, setRoomStatus] = useState(room.status ?? 'waiting');
     const [chatInput, setChatInput] = useState('');
@@ -18,7 +18,7 @@ export function LobbyScreen({ room, user, isOwner, onStart, onLeave }) {
     const joinedRef = useRef(false);
     const closedRef = useRef(false);
     const latest = useRef({});
-    latest.current = { onLeave, addToast };
+    latest.current = { onLeave, onRoomStarted, addToast };
 
     // Jogadores e estado da sala em tempo real (com recarga a cada 10s como garantia) + "sala viva"
     useEffect(() => {
@@ -46,6 +46,8 @@ export function LobbyScreen({ room, user, isOwner, onStart, onLeave }) {
                 }
                 setPlayers(rows);
                 setRoomStatus(current.status);
+                if (current.status === 'playing' && !isOwner)
+                    latest.current.onRoomStarted?.();
             }
             catch (err) {
                 console.error(err);
@@ -62,7 +64,7 @@ export function LobbyScreen({ room, user, isOwner, onStart, onLeave }) {
             clearInterval(poll);
             clearInterval(heartbeat);
         };
-    }, [room.id, room.code, user.id]);
+    }, [room.id, room.code, user.id, isOwner]);
 
     // Chat em tempo real (mensagens não são gravadas no banco)
     useEffect(() => {
@@ -151,8 +153,8 @@ export function LobbyScreen({ room, user, isOwner, onStart, onLeave }) {
         <div className="flex-1 p-4 space-y-4 overflow-y-auto">
           {/* Status banner */}
           {started && !isOwner ? (<div className="bg-[var(--warning)]/15 border border-[var(--warning)]/40 rounded-2xl p-4">
-              <div className="font-700 text-[var(--foreground)]">🎮 O dono iniciou a partida</div>
-              <div className="text-xs text-[var(--muted-foreground)] mt-1">As rodadas em tempo real entre vários jogadores ainda estão em desenvolvimento. Por enquanto, a rodada é jogada no aparelho do dono.</div>
+              <div className="font-700 text-[var(--foreground)]">🎮 Partida iniciada</div>
+              <div className="text-xs text-[var(--muted-foreground)] mt-1">Sincronizando a rodada com o dono...</div>
             </div>) : (<div className="bg-[var(--primary)]/10 border border-[var(--primary)]/30 rounded-2xl p-4 flex items-center gap-3">
               <div className="w-3 h-3 rounded-full bg-[var(--primary)] animate-pulse"/>
               <div>
@@ -184,8 +186,8 @@ export function LobbyScreen({ room, user, isOwner, onStart, onLeave }) {
           {/* Actions */}
           <div className="flex flex-col gap-3 pt-2">
             {isOwner ? (<>
-                <Button size="xl" className="w-full" disabled={!allReady || starting || view.length === 0} onClick={handleStart}>
-                  {starting ? 'Iniciando...' : allReady ? '🚀 Iniciar Partida!' : `⏳ Aguardando prontos (${readyCount}/${view.length})`}
+                <Button size="xl" className="w-full" disabled={!allReady || starting || view.length < 2} onClick={handleStart}>
+                  {starting ? 'Iniciando...' : view.length < 2 ? '👥 Convide pelo menos mais 1 jogador' : allReady ? '🚀 Iniciar Partida!' : `⏳ Aguardando prontos (${readyCount}/${view.length})`}
                 </Button>
                 <Button variant="danger" size="md" className="w-full" onClick={() => setLeaveModal(true)}>
                   🗑️ Excluir sala

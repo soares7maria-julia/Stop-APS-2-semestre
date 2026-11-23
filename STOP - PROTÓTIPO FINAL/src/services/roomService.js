@@ -125,7 +125,7 @@ export async function touchRoom(roomId) {
 // Lobby em tempo real: jogadores entrando/saindo e a sala sendo alterada ou excluída
 export function subscribeToRoom(roomId, onChange) {
   const channel = supabase
-    .channel(`room-${roomId}`)
+    .channel(`room-presence-${roomId}`)
     .on('postgres_changes',
       { event: '*', schema: 'public', table: 'room_players', filter: `room_id=eq.${roomId}` },
       () => onChange())
@@ -144,6 +144,27 @@ export function joinRoomChat(roomId, onMessage) {
     .subscribe()
   return {
     send: message => channel.send({ type: 'broadcast', event: 'message', payload: message }),
+    leave: () => supabase.removeChannel(channel),
+  }
+}
+
+// Canal único da partida: o dono publica a letra/fases/resultados e os jogadores
+// enviam suas respostas pelo mesmo tópico Realtime.
+export function joinRoomGame(roomId, onEvent, onStatus = () => {}) {
+  let subscribed = false
+  const pending = []
+  const channel = supabase.channel(`room-${roomId}`, { config: { broadcast: { self: true } } })
+    .on('broadcast', { event: 'game' }, ({ payload }) => onEvent(payload))
+    .subscribe(status => {
+      subscribed = status === 'SUBSCRIBED'
+      onStatus(status)
+      if (subscribed) while (pending.length) channel.send({ type: 'broadcast', event: 'game', payload: pending.shift() })
+    })
+  return {
+    send: payload => {
+      if (!subscribed) { pending.push(payload); return Promise.resolve('queued') }
+      return channel.send({ type: 'broadcast', event: 'game', payload })
+    },
     leave: () => supabase.removeChannel(channel),
   }
 }

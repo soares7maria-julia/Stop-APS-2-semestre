@@ -11,15 +11,18 @@ import { InvitePage } from './pages/InvitePage'
 import { RankingPage } from './pages/RankingPage'
 import { ProfilePage } from './pages/ProfilePage'
 import { NotFoundPage } from './pages/NotFoundPage'
+import { getAudioEnabled, setAudioEnabled } from './lib/audio'
 
 export default function App() {
   const { loading } = useAuth()
   const [darkMode, setDarkMode] = useState(false)
-  const [soundOn, setSoundOn] = useState(true)
+  const [soundOn, setSoundOn] = useState(getAudioEnabled)
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode)
   }, [darkMode])
+
+  useEffect(() => { setAudioEnabled(soundOn) }, [soundOn])
 
   // Espera a sessão ser lida para a tela de login não "piscar" ao atualizar a página
   if (loading) return null

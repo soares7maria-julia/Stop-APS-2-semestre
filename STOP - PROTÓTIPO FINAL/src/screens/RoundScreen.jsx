@@ -4,7 +4,7 @@ import { useToast, ToastContainer } from '../components/ui';
 import { DIFFICULTY_CONFIG } from '../gameState';
 import { isValidAnswer, normalizeText } from '../lib/scoring';
 
-export function RoundScreen({ currentRound, totalRounds, categories, letter, usedLetters, totalTime, difficulty, isOwner, user, players, onLeave, onStop, onInstructions }) {
+export function RoundScreen({ currentRound, totalRounds, categories, letter, usedLetters, totalTime, difficulty, isOwner, user, players, stopSignal, onLeave, onStop, onInstructions }) {
     const [phase, setPhase] = useState('playing');
     // Cada campo já começa com a letra sorteada
     const [answers, setAnswers] = useState(() => Object.fromEntries(categories.map(cat => [cat, letter])));
@@ -39,6 +39,12 @@ export function RoundScreen({ currentRound, totalRounds, categories, letter, use
     }, [timeLeft, phase]);
 
     useEffect(() => () => clearTimeout(stopTimeoutRef.current), []);
+
+    useEffect(() => {
+        if (!stopSignal || phase !== 'playing') return;
+        setPhase('sending');
+        stopTimeoutRef.current = setTimeout(() => onStop(answersRef.current, stopSignal.reason), 0);
+    }, [stopSignal]);
 
     function handleStop() {
         if (phase !== 'playing')
