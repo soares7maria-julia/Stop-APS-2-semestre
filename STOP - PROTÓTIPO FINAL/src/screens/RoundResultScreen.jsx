@@ -1,7 +1,8 @@
 import React from 'react';
 import { Screen, TopBar, Card, Button } from '../components/ui';
+import { answerText } from '../lib/scoring';
 
-export function RoundResultScreen({ currentRound, totalRounds, letter, categories, isLastRound, user, isOwner, roundResult, totalScore, players: roomScores = [], onBack, onNext }) {
+export function RoundResultScreen({ currentRound, totalRounds, letter, categories, isLastRound, user, isOwner, roundResult, totalScore, players: roomScores = [], roomPlayers = [], answers = {}, onBack, onNext }) {
     const breakdown = roundResult?.breakdown ?? {};
     const roundScore = roundResult?.total ?? 0;
     // Hoje só o próprio jogador; com a partida em tempo real, esta lista passa a ter todos os jogadores da sala
@@ -27,6 +28,22 @@ export function RoundResultScreen({ currentRound, totalRounds, letter, categorie
                 <div className={`font-700 text-lg ${pts > 0 ? 'text-[var(--success)]' : 'text-[var(--muted-foreground)]'}`}>{pts > 0 ? `+${pts}` : '—'}</div>
               </div>);
             })}
+          </div>
+        </Card>
+
+        <Card className="p-5">
+          <h2 className="text-xl text-[var(--foreground)] mb-4">📝 Respostas de todos</h2>
+          <div className="space-y-4">
+            {categories.map(category => <div key={category}>
+              <h3 className="font-700 text-sm text-[var(--muted-foreground)] mb-2">{category}</h3>
+              <div className="space-y-1.5">
+                {roomPlayers.map(player => <div key={player.id} className="flex items-center gap-2 rounded-xl bg-[var(--muted)] px-3 py-2 text-sm">
+                  <span className="text-xl">{player.avatar}</span>
+                  <span className="font-600 text-[var(--card-foreground)]">{player.name}</span>
+                  <span className="ml-auto text-[var(--foreground)]">{answerText(answers[player.id]?.[category]) || '—'}</span>
+                </div>)}
+              </div>
+            </div>)}
           </div>
         </Card>
 

@@ -2,21 +2,25 @@ import React, { useMemo, useState } from 'react';
 import { Screen, TopBar, Card, Button } from '../components/ui';
 import { isValidAnswer, answerText, normalizeText } from '../lib/scoring';
 
-// Revisão das respostas da rodada. Hoje avalia as respostas do próprio jogador;
-// respostas repetidas e contestação entram quando a partida passar a reunir vários jogadores.
 export function ReviewScreen({ currentRound, totalRounds, letter, categories, answers, roomPlayers = [], user, isOwner, onBack, onFinish }) {
     const [selectedCategory, setSelectedCategory] = useState(0);
-    const submissions = answers && Object.values(answers).some(value => value && typeof value === 'object' && !Array.isArray(value)) && !categories.some(cat => Object.hasOwn(answers, cat)) ? answers : { [user.id]: answers };
-    const players = Object.entries(submissions).map(([id, submission]) => ({ id, submission }));
+    const hasPlayerAnswers = roomPlayers.some(player => Object.hasOwn(answers ?? {}, player.id));
+    const submissions = hasPlayerAnswers ? answers : { [user.id]: answers };
+    const players = roomPlayers.length
+        ? roomPlayers.map(player => ({ id: player.id, name: player.name, submission: submissions[player.id] }))
+        : [{ id: user.id, name: user.name, submission: submissions[user.id] }];
+    const submittedCount = players.filter(player => player.submission).length;
+    const allSubmitted = submittedCount === players.length;
     const rows = useMemo(() => categories.map(category => {
         const values = players.map(({ id, submission }) => {
+            if (!submission) return { id, value: '', situation: 'Enviando respostas…', points: 0 };
             const value = answerText(submission?.[category]).trim();
             const valid = isValidAnswer(value, letter);
             const repeated = valid && players.some(other => other.id !== id && normalizeText(answerText(other.submission?.[category])) === normalizeText(value));
             return { id, value: value.length > 1 ? value : '', situation: !value || value.length < 2 ? 'Em branco' : !valid ? 'Inválida' : repeated ? 'Repetida' : 'Única', points: valid ? repeated ? 5 : 10 : 0 };
         });
         return { category, values };
-    }), [answers, categories, letter]);
+    }), [answers, categories, letter, roomPlayers]);
     const ownScore = rows.reduce((sum, row) => sum + (row.values.find(value => value.id === user.id)?.points ?? 0), 0);
     const active = rows[selectedCategory];
 
@@ -51,7 +55,7 @@ export function ReviewScreen({ currentRound, totalRounds, letter, categories, an
               </thead>
               <tbody>
                 {active.values.map(row => <tr key={row.id}>
-                  <td className="px-4 py-4 font-700">{row.id === user.id ? `${user.name} (você)` : roomPlayers.find(player => player.id === row.id)?.name ?? row.id}</td>
+                  <td className="px-4 py-4 font-700">{row.id === user.id ? `${user.name} (você)` : players.find(player => player.id === row.id)?.name ?? row.id}</td>
                   <td className="px-4 py-4 break-words">{row.value || '—'}</td><td className="px-4 py-4">{row.situation}</td><td className="px-4 py-4 tabular-nums">{row.points}</td>
                 </tr>)}
               </tbody>
@@ -66,8 +70,8 @@ export function ReviewScreen({ currentRound, totalRounds, letter, categories, an
 
       <div className="fixed bottom-0 inset-x-0 z-20 bg-[var(--card)] border-t border-[var(--border)] px-4 py-3 shadow-lg">
         <div className="max-w-4xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <span className="font-700 text-[var(--card-foreground)]">{isOwner ? <>Confira as respostas da sala · sua prévia: <span className="text-[var(--primary)] tabular-nums">{ownScore}</span></> : 'Aguardando o dono conferir e publicar o resultado...'}</span>
-          {isOwner && <Button onClick={onFinish}>Publicar Resultado</Button>}
+          <span className="font-700 text-[var(--card-foreground)]">{isOwner ? <>{allSubmitted ? 'Confira as respostas da sala' : `Recebendo respostas: ${submittedCount}/${players.length}`} · sua prévia: <span className="text-[var(--primary)] tabular-nums">{ownScore}</span></> : 'Todos podem conferir as respostas · aguardando o dono publicar o resultado...'}</span>
+          {isOwner && <Button disabled={!allSubmitted} onClick={onFinish}>Publicar Resultado</Button>}
         </div>
       </div>
     </Screen>);

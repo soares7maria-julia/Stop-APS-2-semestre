@@ -42,6 +42,8 @@ export function GamePage() {
   const [gameResults, setGameResults] = useState([])
   const [gameChannelStatus, setGameChannelStatus] = useState('CONNECTING')
   const gameChannel = useRef(null)
+  const currentRoundRef = useRef(currentRound)
+  currentRoundRef.current = currentRound
   const finishGameRef = useRef(null)
   const receivedStop = useRef(false)
   const receivedStartId = useRef(null)
@@ -65,17 +67,24 @@ export function GamePage() {
       if (!event || event.playerId === user?.id) return
       if (event.type === 'start' && !isOwner && receivedStartId.current !== event.eventId) {
         receivedStartId.current = event.eventId
+        receivedStop.current = false; setRoundAnswers({}); setStopSignal(null)
         setRoomPlayers(event.players); setCurrentRound(1); setUsedLetters([event.letter]); setCurrentLetter(event.letter); setScreen('letter-draw')
       }
       if (event.type === 'round' && !isOwner) {
-        receivedStop.current = false; setRoundAnswers({}); setCurrentRound(event.round); setCurrentLetter(event.letter); setUsedLetters(event.usedLetters); setScreen('letter-draw')
+        receivedStop.current = false; setRoundAnswers({}); setStopSignal(null); setCurrentRound(event.round); setCurrentLetter(event.letter); setUsedLetters(event.usedLetters); setScreen('letter-draw')
       }
-      if (event.type === 'answers' && isOwner) setRoundAnswers(prev => ({ ...prev, [event.playerId]: event.answers }))
-      if (event.type === 'stop' && !receivedStop.current) {
-        receivedStop.current = true; setStopSignal({ reason: event.reason, stoppedBy: event.stoppedBy ?? 'Outro jogador', id: `${currentRound}-${Date.now()}` })
+      if (event.type === 'answers' && event.round === currentRoundRef.current) {
+        setRoundAnswers(prev => ({ ...prev, [event.playerId]: event.answers }))
       }
-      if (event.type === 'result') {
+      if (event.type === 'stop' && event.round === currentRoundRef.current && !receivedStop.current) {
+        receivedStop.current = true
+        setStopReason(event.reason)
+        setStoppedBy(event.stoppedBy ?? 'Outro jogador')
+        setStopSignal({ reason: event.reason, stoppedBy: event.stoppedBy ?? 'Outro jogador', id: `${event.round}-${Date.now()}` })
+      }
+      if (event.type === 'result' && event.round === currentRoundRef.current) {
         const personalResult = event.personalRoundResults?.[user?.id]
+        if (event.answers) setRoundAnswers(event.answers)
         setRounds(prev => [...prev.filter(r => r.round !== event.round), personalResult ?? event.rounds.at(-1)])
         setGameResults(event.players); setScreen('round-result')
       }
@@ -114,6 +123,9 @@ export function GamePage() {
     const letter = pickLetter([])
     setCurrentLetter(letter)
     setUsedLetters([letter])
+    setRoundAnswers({})
+    setStopSignal(null)
+    receivedStop.current = false
     setScreen('letter-draw')
     const startEvent = { type: 'start', eventId: crypto.randomUUID(), playerId: user.id, players: list, round: 1, letter }
     gameChannel.current?.send(startEvent)
@@ -121,13 +133,13 @@ export function GamePage() {
     ;[500, 1000, 2000, 4000, 8000, 12000, 16000].forEach(delay => setTimeout(() => gameChannel.current?.send(startEvent), delay))
   }
   function handleStop(answers, reason = 'stop') {
-    setRoundAnswers(prev => isOwner ? { ...prev, [user.id]: answers } : answers)
+    setRoundAnswers(prev => ({ ...prev, [user.id]: answers }))
     setStopReason(reason)
     setStoppedBy(receivedStop.current && stopSignal ? stopSignal.stoppedBy : user.name)
-    gameChannel.current?.send({ type: 'answers', playerId: user.id, answers })
+    gameChannel.current?.send({ type: 'answers', playerId: user.id, round: currentRound, answers })
     if (!receivedStop.current) {
       receivedStop.current = true
-      gameChannel.current?.send({ type: 'stop', playerId: user.id, reason, stoppedBy: user.name })
+      gameChannel.current?.send({ type: 'stop', playerId: user.id, round: currentRound, reason, stoppedBy: user.name })
     }
     setScreen('round-end')
   }
@@ -152,7 +164,7 @@ export function GamePage() {
       })
       result = personalRoundResults[user.id] ?? result
       nextRounds = [...rounds.filter(r => r.round !== currentRound), result]
-      gameChannel.current?.send({ type: 'result', playerId: user.id, round: currentRound, rounds: nextRounds, personalRoundResults, players })
+      gameChannel.current?.send({ type: 'result', playerId: user.id, round: currentRound, rounds: nextRounds, personalRoundResults, players, answers: submissions })
       setGameResults(players)
     }
     if (!nextRounds) nextRounds = [...rounds.filter(r => r.round !== currentRound), { round: currentRound, letter: currentLetter, ...result }]
@@ -248,7 +260,7 @@ export function GamePage() {
 
     {screen === 'review' && (<ReviewScreen currentRound={currentRound} totalRounds={totalRounds} letter={currentLetter} categories={categories} answers={roundAnswers} roomPlayers={roomPlayers} user={user} isOwner={isOwner} onBack={() => setScreen('round-end')} onFinish={handleReviewFinish}/>)}
 
-    {screen === 'round-result' && (<RoundResultScreen currentRound={currentRound} totalRounds={totalRounds} letter={currentLetter} categories={categories} isLastRound={currentRound >= totalRounds} user={user} isOwner={isOwner} players={gameResults} roundResult={currentRoundResult} totalScore={totalScore} onBack={() => setScreen('review')} onNext={handleNextRound}/>)}
+    {screen === 'round-result' && (<RoundResultScreen currentRound={currentRound} totalRounds={totalRounds} letter={currentLetter} categories={categories} isLastRound={currentRound >= totalRounds} user={user} isOwner={isOwner} players={gameResults} roomPlayers={roomPlayers} answers={roundAnswers} roundResult={currentRoundResult} totalScore={totalScore} onBack={() => setScreen('review')} onNext={handleNextRound}/>)}
 
     {screen === 'game-over' && (<GameOverScreen isOwner={isOwner} players={players} saveState={saveState} savedStats={savedStats} points={totalScore} onLogin={() => navigate('/login')} onRegister={() => navigate('/cadastro')} onRetrySave={finishGame} onBack={() => setScreen('round-result')} onNewGame={handleNewGame} onMenu={handleLeave}/>)}
 
