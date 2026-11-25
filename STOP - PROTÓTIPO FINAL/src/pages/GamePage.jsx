@@ -6,7 +6,6 @@ import { LobbyScreen } from '../screens/LobbyScreen'
 import { LetterDrawScreen } from '../screens/LetterDrawScreen'
 import { RoundScreen } from '../screens/RoundScreen'
 import { RoundEndScreen } from '../screens/RoundEndScreen'
-import { ReviewScreen } from '../screens/ReviewScreen'
 import { RoundResultScreen } from '../screens/RoundResultScreen'
 import { GameOverScreen } from '../screens/GameOverScreen'
 import { Modal } from '../components/ui'
@@ -40,6 +39,7 @@ export function GamePage() {
   const [saveState, setSaveState] = useState('idle') // idle | saving | saved | pending | error
   const [savedStats, setSavedStats] = useState(null)
   const [gameResults, setGameResults] = useState([])
+  const [roundPublished, setRoundPublished] = useState(false)
   const [gameChannelStatus, setGameChannelStatus] = useState('CONNECTING')
   const gameChannel = useRef(null)
   const currentRoundRef = useRef(currentRound)
@@ -67,11 +67,11 @@ export function GamePage() {
       if (!event || event.playerId === user?.id) return
       if (event.type === 'start' && !isOwner && receivedStartId.current !== event.eventId) {
         receivedStartId.current = event.eventId
-        receivedStop.current = false; setRoundAnswers({}); setStopSignal(null)
+        receivedStop.current = false; setRoundAnswers({}); setStopSignal(null); setRoundPublished(false)
         setRoomPlayers(event.players); setCurrentRound(1); setUsedLetters([event.letter]); setCurrentLetter(event.letter); setScreen('letter-draw')
       }
       if (event.type === 'round' && !isOwner) {
-        receivedStop.current = false; setRoundAnswers({}); setStopSignal(null); setCurrentRound(event.round); setCurrentLetter(event.letter); setUsedLetters(event.usedLetters); setScreen('letter-draw')
+        receivedStop.current = false; setRoundAnswers({}); setStopSignal(null); setRoundPublished(false); setCurrentRound(event.round); setCurrentLetter(event.letter); setUsedLetters(event.usedLetters); setScreen('letter-draw')
       }
       if (event.type === 'answers' && event.round === currentRoundRef.current) {
         setRoundAnswers(prev => ({ ...prev, [event.playerId]: event.answers }))
@@ -86,7 +86,7 @@ export function GamePage() {
         const personalResult = event.personalRoundResults?.[user?.id]
         if (event.answers) setRoundAnswers(event.answers)
         setRounds(prev => [...prev.filter(r => r.round !== event.round), personalResult ?? event.rounds.at(-1)])
-        setGameResults(event.players); setScreen('round-result')
+        setGameResults(event.players); setRoundPublished(true); setScreen('round-result')
       }
       if (event.type === 'game-over') { setGameResults(event.players); setScreen('game-over'); if (!isOwner) setTimeout(() => finishGameRef.current?.(), 0) }
     }, setGameChannelStatus)
@@ -106,6 +106,7 @@ export function GamePage() {
     setCurrentRound(1)
     setUsedLetters([])
     setRounds([])
+    setRoundPublished(false)
     setSaveState('idle')
     setSavedStats(null)
   }
@@ -124,6 +125,7 @@ export function GamePage() {
     setCurrentLetter(letter)
     setUsedLetters([letter])
     setRoundAnswers({})
+    setRoundPublished(false)
     setStopSignal(null)
     receivedStop.current = false
     setScreen('letter-draw')
@@ -143,29 +145,32 @@ export function GamePage() {
     }
     setScreen('round-end')
   }
-  function handleReviewFinish() {
+  function publishRoundResult() {
     let result = scoreRound(roundAnswers, categories, currentLetter)
     let nextRounds
     if (isOwner) {
       const submissions = { ...roundAnswers, [user.id]: roundAnswers?.[user.id] ?? roundAnswers }
       const personalRoundResults = {}
       const players = roomPlayers.map(player => {
-        const ownResult = scoreRound(submissions[player.id], categories, currentLetter)
+        const breakdown = {}
         const roundScore = categories.reduce((sum, category) => {
           const answer = submissions[player.id]?.[category]
           const scored = scoreRound({ [category]: answer }, [category], currentLetter).total
-          if (!scored) return sum
+          if (!scored) { breakdown[category] = 0; return sum }
           const duplicate = roomPlayers.some(other => other.id !== player.id && normalizeText(submissions[other.id]?.[category] ?? '') === normalizeText(answer ?? ''))
-          return sum + (duplicate ? 5 : 10)
+          const points = duplicate ? 5 : 10
+          breakdown[category] = points
+          return sum + points
         }, 0)
         const previous = gameResults.find(p => p.playerId === player.id)?.totalScore ?? 0
-        personalRoundResults[player.id] = { round: currentRound, letter: currentLetter, breakdown: ownResult.breakdown, total: roundScore }
+        personalRoundResults[player.id] = { round: currentRound, letter: currentLetter, breakdown, total: roundScore }
         return { playerId: player.id, name: player.name, avatar: player.avatar, roundScore, totalScore: previous + roundScore }
       })
       result = personalRoundResults[user.id] ?? result
       nextRounds = [...rounds.filter(r => r.round !== currentRound), result]
       gameChannel.current?.send({ type: 'result', playerId: user.id, round: currentRound, rounds: nextRounds, personalRoundResults, players, answers: submissions })
       setGameResults(players)
+      setRoundPublished(true)
     }
     if (!nextRounds) nextRounds = [...rounds.filter(r => r.round !== currentRound), { round: currentRound, letter: currentLetter, ...result }]
     setRounds(nextRounds)
@@ -203,6 +208,7 @@ export function GamePage() {
       receivedStop.current = false
       setRoundAnswers({})
       setStopSignal(null)
+      setRoundPublished(false)
       const letter = pickLetter(usedLetters)
       setCurrentLetter(letter)
       setUsedLetters(prev => [...prev, letter])
@@ -256,11 +262,9 @@ export function GamePage() {
 
     {screen === 'round' && (<RoundScreen currentRound={currentRound} totalRounds={totalRounds} categories={categories} letter={currentLetter} usedLetters={usedLetters.slice(0, -1)} totalTime={totalTime} difficulty={room?.difficulty ?? 'medio'} isOwner={isOwner} user={user} players={roomPlayers} stopSignal={stopSignal} onLeave={handleLeave} onStop={handleStop} onInstructions={() => setInstrOpen(true)}/>)}
 
-    {screen === 'round-end' && (<RoundEndScreen reason={stopReason} stoppedBy={stoppedBy} onComplete={() => setScreen('review')}/>)}
+    {screen === 'round-end' && (<RoundEndScreen reason={stopReason} stoppedBy={stoppedBy} onComplete={() => setScreen('round-result')}/>)}
 
-    {screen === 'review' && (<ReviewScreen currentRound={currentRound} totalRounds={totalRounds} letter={currentLetter} categories={categories} answers={roundAnswers} roomPlayers={roomPlayers} user={user} isOwner={isOwner} onBack={() => setScreen('round-end')} onFinish={handleReviewFinish}/>)}
-
-    {screen === 'round-result' && (<RoundResultScreen currentRound={currentRound} totalRounds={totalRounds} letter={currentLetter} categories={categories} isLastRound={currentRound >= totalRounds} user={user} isOwner={isOwner} players={gameResults} roomPlayers={roomPlayers} answers={roundAnswers} roundResult={currentRoundResult} totalScore={totalScore} onBack={() => setScreen('review')} onNext={handleNextRound}/>)}
+    {screen === 'round-result' && (<RoundResultScreen currentRound={currentRound} totalRounds={totalRounds} letter={currentLetter} categories={categories} isLastRound={currentRound >= totalRounds} user={user} isOwner={isOwner} isPublished={roundPublished} allSubmitted={roomPlayers.every(player => !!roundAnswers[player.id])} players={gameResults} roomPlayers={roomPlayers} answers={roundAnswers} roundResult={currentRoundResult} totalScore={totalScore} onPublish={publishRoundResult} onNext={handleNextRound}/>)}
 
     {screen === 'game-over' && (<GameOverScreen isOwner={isOwner} players={players} saveState={saveState} savedStats={savedStats} points={totalScore} onLogin={() => navigate('/login')} onRegister={() => navigate('/cadastro')} onRetrySave={finishGame} onBack={() => setScreen('round-result')} onNewGame={handleNewGame} onMenu={handleLeave}/>)}
 
