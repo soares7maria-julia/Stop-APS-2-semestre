@@ -4,7 +4,9 @@ import { answerText, isValidAnswer, normalizeText } from '../lib/scoring';
 
 export function RoundResultScreen({ currentRound, totalRounds, letter, categories, isLastRound, user, isOwner, isPublished, allSubmitted, roundResult, totalScore, players: roomScores = [], roomPlayers = [], answers = {}, onPublish, onNext }) {
     const responseGroups = categories.map(category => {
-        const rows = roomPlayers.map(player => {
+        const rows = [...roomPlayers]
+          .sort((a, b) => Number(b.id === user.id) - Number(a.id === user.id))
+          .map(player => {
             const value = answerText(answers[player.id]?.[category]).trim();
             const valid = isValidAnswer(value, letter);
             const repeated = valid && roomPlayers.some(other => other.id !== player.id && normalizeText(answerText(answers[other.id]?.[category])) === normalizeText(value));
@@ -21,6 +23,7 @@ export function RoundResultScreen({ currentRound, totalRounds, letter, categorie
     ]));
     const ownScore = isPublished ? (roundResult?.total ?? 0) : Object.values(previewBreakdown).reduce((sum, points) => sum + points, 0);
     const ownBreakdown = isPublished ? (roundResult?.breakdown ?? previewBreakdown) : previewBreakdown;
+    const playerColumns = [...roomPlayers].sort((a, b) => Number(b.id === user.id) - Number(a.id === user.id));
 
     return (<Screen>
       <TopBar title={`Resultado — Rodada ${currentRound}/${totalRounds}`} subtitle={`Letra: ${letter}`}/>
@@ -46,18 +49,31 @@ export function RoundResultScreen({ currentRound, totalRounds, letter, categorie
 
         <Card className="p-5">
           <h2 className="text-xl text-[var(--foreground)] mb-4">📝 Respostas de todos</h2>
-          <div className="space-y-4">
-            {responseGroups.map(({ category, rows }) => <section key={category}>
-              <h3 className="font-700 text-sm text-[var(--muted-foreground)] mb-2">{category}</h3>
-              <div className="space-y-1.5">
-                {rows.map(row => <div key={row.id} className="flex items-center gap-2 rounded-xl bg-[var(--muted)] px-3 py-2 text-sm">
-                  <span className="text-xl">{row.avatar}</span>
-                  <span className="font-600 text-[var(--card-foreground)]">{row.name}{row.id === user.id && <span className="text-[var(--primary)]"> (você)</span>}</span>
-                  <span className="ml-auto mr-3 text-[var(--foreground)]">{row.value || '—'}</span>
-                  <span className={`font-700 tabular-nums ${row.points > 0 ? 'text-[var(--success)]' : 'text-[var(--muted-foreground)]'}`}>{row.points} pts</span>
-                </div>)}
-              </div>
-            </section>)}
+          <div className="overflow-x-auto rounded-xl border border-[var(--border)]">
+            <table className="w-full min-w-max text-sm text-left text-[var(--card-foreground)]">
+              <thead className="bg-[var(--muted)] text-[var(--muted-foreground)]">
+                <tr>
+                  <th scope="col" className="sticky left-0 z-10 bg-[var(--muted)] px-4 py-3 font-700">Categoria</th>
+                  {playerColumns.map(player => <th scope="col" key={player.id} className="min-w-40 px-4 py-3 font-700">
+                    <span className="inline-flex items-center gap-2"><span className="text-lg">{player.avatar}</span><span>{player.name}{player.id === user.id && <span className="text-[var(--primary)]"> (você)</span>}</span></span>
+                  </th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {responseGroups.map(({ category, rows }) => <tr key={category} className="border-t border-[var(--border)]">
+                  <th scope="row" className="sticky left-0 z-10 bg-[var(--card)] px-4 py-3 font-700">{category}</th>
+                  {playerColumns.map(player => {
+                    const row = rows.find(item => item.id === player.id)
+                    return <td key={player.id} className="px-4 py-3">
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-[var(--foreground)]">{row?.value || '—'}</span>
+                        <span className={`font-700 tabular-nums whitespace-nowrap ${row?.points > 0 ? 'text-[var(--success)]' : 'text-[var(--muted-foreground)]'}`}>{row?.points ?? 0} pts</span>
+                      </div>
+                    </td>
+                  })}
+                </tr>)}
+              </tbody>
+            </table>
           </div>
         </Card>
 
