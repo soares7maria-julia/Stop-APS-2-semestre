@@ -90,3 +90,8 @@ O projeto utiliza o Supabase como serviço de backend, com:
 - **Supabase Realtime:** atualização de informações das salas e dos jogadores em tempo real.
 - **Row Level Security (RLS):** controle de acesso aos dados.
 - **Funções SQL:** operações de criação e entrada em salas, ranking e registro de pontuações.
+
+### Schemas do banco de dados
+
+- `src/imports/schema.sql`: schemas do banco de dados em sql.
+
