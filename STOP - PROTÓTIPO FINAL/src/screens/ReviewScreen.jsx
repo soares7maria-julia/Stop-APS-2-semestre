@@ -1,4 +1,4 @@
-// Permite ao dono conferir e pontuar as respostas enviadas pelos participantes da rodada.
+// Tela antiga de revisão, mantida como referência; a revisão ativa com votação fica em RoundResultScreen.
 import React, { useMemo, useState } from 'react';
 import { Screen, TopBar, Card, Button } from '../components/ui';
 import { isValidAnswer, answerText, normalizeText } from '../lib/scoring';

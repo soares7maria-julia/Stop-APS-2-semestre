@@ -1,6 +1,6 @@
 # Stop! — guia do projeto
 
-Jogo de Stop multiplayer feito com React, Vite e Supabase. O app permite jogar como convidado ou com uma conta, criar e entrar em salas, jogar rodadas em tempo real e consultar o ranking.
+Jogo de Stop multiplayer feito com React, Vite e Supabase. O app permite jogar como convidado ou com uma conta, criar e entrar em salas, jogar rodadas em tempo real, contestar respostas por votação e consultar o ranking.
 
 ## Requisitos
 
@@ -40,6 +40,7 @@ O arquivo `.env.example` contém apenas valores de exemplo. Coloque os valores r
 - **Autenticação:** cadastro e login por e-mail e senha, sessão persistente e login anônimo para convidado.
 - **Salas:** criação e busca de salas, entrada por código, lista pública, jogadores e atualização de presença. Na sala privada, o código/link de convite funciona como credencial de acesso.
 - **Partida em tempo real:** canais Realtime da sala enviam eventos de início, letra, respostas, STOP e resultados; o lobby também usa Realtime para jogadores e chat.
+- **Contestação:** na revisão da rodada, cada jogador pode contestar respostas dos demais. A maioria dos outros jogadores exclui a resposta e zera seus pontos; o autor recebe um aviso. Todos concluem a revisão antes que o dono possa publicar o resultado.
 - **Pontuação e ranking:** o app chama as funções `submit_score`, `get_ranking` e `get_my_stats` e consulta o histórico do jogador em `game_history`.
 - **Perfil:** o app atualiza nome e avatar em `profiles`.
 

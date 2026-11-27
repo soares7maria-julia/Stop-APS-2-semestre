@@ -13,10 +13,10 @@ import { Modal } from '../components/ui'
 import { useAuth } from '../context/AuthContext'
 import { submitScore } from '../services/gameService'
 import { deleteRoom, leaveRoom, joinRoomGame } from '../services/roomService'
-import { scoreRound, normalizeText } from '../lib/scoring'
+import { scoreRound, normalizeText, contestAnswerKey, contestVoteThreshold, isAnswerRejected } from '../lib/scoring'
 import { playGameSound } from '../lib/audio'
 
-// Fluxo do jogo: salas (reais, no Supabase) e rodadas.
+// Coordena salas, rodadas, votos de contestação e a publicação dos resultados entre os jogadores.
 // Quem chega pelo link de convite já vem com a sala em location.state.room.
 export function GamePage() {
   const { user, isAuthenticated, setPendingScore } = useAuth()
@@ -33,6 +33,9 @@ export function GamePage() {
   const [currentLetter, setCurrentLetter] = useState('B')
   const [instrOpen, setInstrOpen] = useState(false)
   const [roundAnswers, setRoundAnswers] = useState({})
+  const [contestVotes, setContestVotes] = useState({})
+  const [rejectedAnswers, setRejectedAnswers] = useState([])
+  const [reviewedPlayers, setReviewedPlayers] = useState([])
   const [stopReason, setStopReason] = useState('stop')
   const [stoppedBy, setStoppedBy] = useState('Você')
   const [stopSignal, setStopSignal] = useState(null)
@@ -43,6 +46,10 @@ export function GamePage() {
   const [roundPublished, setRoundPublished] = useState(false)
   const [gameChannelStatus, setGameChannelStatus] = useState('CONNECTING')
   const gameChannel = useRef(null)
+  const contestVotesRef = useRef(contestVotes)
+  contestVotesRef.current = contestVotes
+  const rejectedAnswersRef = useRef(rejectedAnswers)
+  rejectedAnswersRef.current = rejectedAnswers
   const currentRoundRef = useRef(currentRound)
   currentRoundRef.current = currentRound
   const finishGameRef = useRef(null)
@@ -68,14 +75,36 @@ export function GamePage() {
       if (!event || event.playerId === user?.id) return
       if (event.type === 'start' && !isOwner && receivedStartId.current !== event.eventId) {
         receivedStartId.current = event.eventId
-        receivedStop.current = false; setRoundAnswers({}); setStopSignal(null); setRoundPublished(false)
+        contestVotesRef.current = {}; rejectedAnswersRef.current = []
+        receivedStop.current = false; setRoundAnswers({}); setContestVotes({}); setRejectedAnswers([]); setReviewedPlayers([]); setStopSignal(null); setRoundPublished(false)
         setRoomPlayers(event.players); setCurrentRound(1); setUsedLetters([event.letter]); setCurrentLetter(event.letter); setScreen('letter-draw')
       }
       if (event.type === 'round' && !isOwner) {
-        receivedStop.current = false; setRoundAnswers({}); setStopSignal(null); setRoundPublished(false); setCurrentRound(event.round); setCurrentLetter(event.letter); setUsedLetters(event.usedLetters); setScreen('letter-draw')
+        contestVotesRef.current = {}; rejectedAnswersRef.current = []
+        receivedStop.current = false; setRoundAnswers({}); setContestVotes({}); setRejectedAnswers([]); setReviewedPlayers([]); setStopSignal(null); setRoundPublished(false); setCurrentRound(event.round); setCurrentLetter(event.letter); setUsedLetters(event.usedLetters); setScreen('letter-draw')
       }
       if (event.type === 'answers' && event.round === currentRoundRef.current) {
         setRoundAnswers(prev => ({ ...prev, [event.playerId]: event.answers }))
+      }
+      if (event.type === 'contest-vote' && event.round === currentRoundRef.current) {
+        const { category, targetPlayerId, voterId, vote } = event
+        if (voterId !== event.playerId || voterId === targetPlayerId || !roomPlayers.some(player => player.id === voterId) || !roomPlayers.some(player => player.id === targetPlayerId)) return
+        const key = contestAnswerKey(category, targetPlayerId)
+        const voters = contestVotesRef.current[key] ?? []
+        const nextVoters = vote ? [...new Set([...voters, voterId])] : voters.filter(id => id !== voterId)
+        const nextVotes = { ...contestVotesRef.current, [key]: nextVoters }
+        contestVotesRef.current = nextVotes
+        setContestVotes(nextVotes)
+        if (nextVoters.length >= contestVoteThreshold(roomPlayers.length) && !rejectedAnswersRef.current.includes(key)) {
+          const rejected = [...rejectedAnswersRef.current, key]
+          rejectedAnswersRef.current = rejected
+          setRejectedAnswers(rejected)
+        }
+      }
+      if (event.type === 'reviewed' && event.round === currentRoundRef.current && roomPlayers.some(player => player.id === event.playerId)) {
+        setReviewedPlayers(prev => event.reviewed
+          ? prev.includes(event.playerId) ? prev : [...prev, event.playerId]
+          : prev.filter(id => id !== event.playerId))
       }
       if (event.type === 'stop' && event.round === currentRoundRef.current && !receivedStop.current) {
         receivedStop.current = true
@@ -87,13 +116,17 @@ export function GamePage() {
         const personalResult = event.personalRoundResults?.[user?.id]
         if (event.answers) setRoundAnswers(event.answers)
         setRounds(prev => [...prev.filter(r => r.round !== event.round), personalResult ?? event.rounds.at(-1)])
+        contestVotesRef.current = event.contestVotes ?? {}
+        rejectedAnswersRef.current = event.rejectedAnswers ?? []
+        setContestVotes(event.contestVotes ?? {}); setRejectedAnswers(event.rejectedAnswers ?? [])
+        setReviewedPlayers(event.reviewedPlayers ?? roomPlayers.map(player => player.id))
         setGameResults(event.players); setRoundPublished(true); setScreen('round-result')
       }
       if (event.type === 'game-over') { setGameResults(event.players); setScreen('game-over'); if (!isOwner) setTimeout(() => finishGameRef.current?.(), 0) }
     }, setGameChannelStatus)
     gameChannel.current = channel
     return () => { channel.leave(); gameChannel.current = null }
-  }, [room?.id, user?.id, isOwner])
+  }, [room?.id, user?.id, isOwner, roomPlayers])
 
   if (!user) return <Navigate to="/convidado" replace state={{ next: '/jogo', start: location.state?.start }} />
 
@@ -106,6 +139,12 @@ export function GamePage() {
   function resetGame() {
     setCurrentRound(1)
     setUsedLetters([])
+    setRoundAnswers({})
+    contestVotesRef.current = {}
+    rejectedAnswersRef.current = []
+    setContestVotes({})
+    setRejectedAnswers([])
+    setReviewedPlayers([])
     setRounds([])
     setRoundPublished(false)
     setSaveState('idle')
@@ -126,6 +165,11 @@ export function GamePage() {
     setCurrentLetter(letter)
     setUsedLetters([letter])
     setRoundAnswers({})
+    contestVotesRef.current = {}
+    rejectedAnswersRef.current = []
+    setContestVotes({})
+    setRejectedAnswers([])
+    setReviewedPlayers([])
     setRoundPublished(false)
     setStopSignal(null)
     receivedStop.current = false
@@ -146,7 +190,33 @@ export function GamePage() {
     }
     setScreen('round-end')
   }
+  function handleContestAnswer(category, targetPlayerId) {
+    if (roundPublished || reviewedPlayers.includes(user.id) || targetPlayerId === user.id || isAnswerRejected(category, targetPlayerId, rejectedAnswersRef.current)) return
+    const key = contestAnswerKey(category, targetPlayerId)
+    const voters = contestVotesRef.current[key] ?? []
+    const vote = !voters.includes(user.id)
+    const nextVoters = vote ? [...voters, user.id] : voters.filter(id => id !== user.id)
+    const nextVotes = { ...contestVotesRef.current, [key]: nextVoters }
+    contestVotesRef.current = nextVotes
+    setContestVotes(nextVotes)
+    if (nextVoters.length >= contestVoteThreshold(roomPlayers.length) && !rejectedAnswersRef.current.includes(key)) {
+      const rejected = [...rejectedAnswersRef.current, key]
+      rejectedAnswersRef.current = rejected
+      setRejectedAnswers(rejected)
+    }
+    gameChannel.current?.send({ type: 'contest-vote', playerId: user.id, voterId: user.id, targetPlayerId, category, round: currentRound, vote })
+  }
+  function toggleReviewComplete() {
+    if (roundPublished) return
+    if (!reviewedPlayers.includes(user.id) && !roomPlayers.every(player => !!roundAnswers[player.id])) return
+    const reviewed = !reviewedPlayers.includes(user.id)
+    setReviewedPlayers(prev => reviewed
+      ? prev.includes(user.id) ? prev : [...prev, user.id]
+      : prev.filter(id => id !== user.id))
+    gameChannel.current?.send({ type: 'reviewed', playerId: user.id, round: currentRound, reviewed })
+  }
   function publishRoundResult() {
+    if (!isOwner || !roomPlayers.every(player => !!roundAnswers[player.id]) || !roomPlayers.every(player => reviewedPlayers.includes(player.id))) return
     let result = scoreRound(roundAnswers, categories, currentLetter)
     let nextRounds
     if (isOwner) {
@@ -157,8 +227,11 @@ export function GamePage() {
         const roundScore = categories.reduce((sum, category) => {
           const answer = submissions[player.id]?.[category]
           const scored = scoreRound({ [category]: answer }, [category], currentLetter).total
-          if (!scored) { breakdown[category] = 0; return sum }
-          const duplicate = roomPlayers.some(other => other.id !== player.id && normalizeText(submissions[other.id]?.[category] ?? '') === normalizeText(answer ?? ''))
+          if (!scored || isAnswerRejected(category, player.id, rejectedAnswers)) { breakdown[category] = 0; return sum }
+          const duplicate = roomPlayers.some(other => other.id !== player.id
+            && !isAnswerRejected(category, other.id, rejectedAnswers)
+            && scoreRound({ [category]: submissions[other.id]?.[category] }, [category], currentLetter).total > 0
+            && normalizeText(submissions[other.id]?.[category] ?? '') === normalizeText(answer ?? ''))
           const points = duplicate ? 5 : 10
           breakdown[category] = points
           return sum + points
@@ -169,7 +242,7 @@ export function GamePage() {
       })
       result = personalRoundResults[user.id] ?? result
       nextRounds = [...rounds.filter(r => r.round !== currentRound), result]
-      gameChannel.current?.send({ type: 'result', playerId: user.id, round: currentRound, rounds: nextRounds, personalRoundResults, players, answers: submissions })
+      gameChannel.current?.send({ type: 'result', playerId: user.id, round: currentRound, rounds: nextRounds, personalRoundResults, players, answers: submissions, contestVotes, rejectedAnswers, reviewedPlayers })
       setGameResults(players)
       setRoundPublished(true)
     }
@@ -208,6 +281,11 @@ export function GamePage() {
     } else {
       receivedStop.current = false
       setRoundAnswers({})
+      contestVotesRef.current = {}
+      rejectedAnswersRef.current = []
+      setContestVotes({})
+      setRejectedAnswers([])
+      setReviewedPlayers([])
       setStopSignal(null)
       setRoundPublished(false)
       const letter = pickLetter(usedLetters)
@@ -265,7 +343,7 @@ export function GamePage() {
 
     {screen === 'round-end' && (<RoundEndScreen reason={stopReason} stoppedBy={stoppedBy} onComplete={() => setScreen('round-result')}/>)}
 
-    {screen === 'round-result' && (<RoundResultScreen currentRound={currentRound} totalRounds={totalRounds} letter={currentLetter} categories={categories} isLastRound={currentRound >= totalRounds} user={user} isOwner={isOwner} isPublished={roundPublished} allSubmitted={roomPlayers.every(player => !!roundAnswers[player.id])} players={gameResults} roomPlayers={roomPlayers} answers={roundAnswers} roundResult={currentRoundResult} totalScore={totalScore} onPublish={publishRoundResult} onNext={handleNextRound}/>)}
+    {screen === 'round-result' && (<RoundResultScreen currentRound={currentRound} totalRounds={totalRounds} letter={currentLetter} categories={categories} isLastRound={currentRound >= totalRounds} user={user} isOwner={isOwner} isPublished={roundPublished} allSubmitted={roomPlayers.every(player => !!roundAnswers[player.id])} players={gameResults} roomPlayers={roomPlayers} answers={roundAnswers} roundResult={currentRoundResult} totalScore={totalScore} contestVotes={contestVotes} rejectedAnswers={rejectedAnswers} reviewedPlayers={reviewedPlayers} onContestAnswer={handleContestAnswer} onToggleReview={toggleReviewComplete} onPublish={publishRoundResult} onNext={handleNextRound}/>)}
 
     {screen === 'game-over' && (<GameOverScreen isOwner={isOwner} players={players} saveState={saveState} savedStats={savedStats} points={totalScore} onLogin={() => navigate('/login')} onRegister={() => navigate('/cadastro')} onRetrySave={finishGame} onBack={() => setScreen('round-result')} onNewGame={handleNewGame} onMenu={handleLeave}/>)}
 
@@ -280,6 +358,7 @@ export function GamePage() {
             <div className="flex justify-between"><span>Resposta única e válida</span><span className="font-700 text-[var(--success)]">10 pts</span></div>
             <div className="flex justify-between"><span>Resposta repetida e válida</span><span className="font-700 text-[var(--warning)]">5 pts</span></div>
             <div className="flex justify-between"><span>Campo em branco ou inválido</span><span className="font-700 text-[var(--danger)]">0 pts</span></div>
+            <p className="pt-2">Na revisão, você pode contestar a resposta de outra pessoa. Se a maioria dos demais jogadores concordar, ela é excluída e vale 0 pontos.</p>
           </div>
         </div>
       </div>

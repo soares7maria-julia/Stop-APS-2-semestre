@@ -138,8 +138,8 @@ export function Badge({ children, color = 'primary' }) {
     return <span className={`text-xs font-700 px-2 py-0.5 rounded-full ${colors[color]}`}>{children}</span>;
 }
 // ── Card ──────────────────────────────────────────────────────────────────────
-export function Card({ className = '', children, onClick }) {
-    return (<div className={`bg-[var(--card)] border border-[var(--border)] rounded-3xl shadow-md ${onClick ? 'cursor-pointer hover:shadow-lg hover:border-[var(--primary)] transition-all' : ''} ${className}`} onClick={onClick}>
+export function Card({ className = '', children, onClick, ...props }) {
+    return (<div {...props} className={`bg-[var(--card)] border border-[var(--border)] rounded-3xl shadow-md ${onClick ? 'cursor-pointer hover:shadow-lg hover:border-[var(--primary)] transition-all' : ''} ${className}`} onClick={onClick}>
       {children}
     </div>);
 }
