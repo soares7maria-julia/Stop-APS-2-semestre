@@ -1,3 +1,4 @@
+// Apresenta o formulário de login, valida os campos e retoma o fluxo após autenticar.
 import React, { useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Button, Input, Divider } from '../components/ui'

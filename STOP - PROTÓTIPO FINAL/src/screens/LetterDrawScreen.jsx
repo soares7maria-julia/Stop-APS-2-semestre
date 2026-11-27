@@ -1,3 +1,4 @@
+// Exibe a animação de sorteio da letra antes do começo de cada rodada.
 import React, { useEffect, useState } from 'react';
 import { Screen, Badge } from '../components/ui';
 

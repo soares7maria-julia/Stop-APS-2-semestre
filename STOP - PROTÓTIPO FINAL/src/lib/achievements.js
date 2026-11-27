@@ -1,3 +1,4 @@
+// Calcula quais conquistas estão liberadas com base nas estatísticas recebidas.
 // Conquistas calculadas a partir das estatísticas reais do jogador (nada fixo).
 export const ACHIEVEMENTS = [
   { id: 'first-win', icon: '🏆', title: 'Primeira Vitória', desc: 'Vença sua primeira partida', test: s => s.wins >= 1 },

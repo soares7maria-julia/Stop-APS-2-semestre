@@ -1,3 +1,4 @@
+// Converte erros de sala recebidos do banco em mensagens claras para o jogador.
 // Mensagens do banco (create_room / join_room_by_code) em linguagem de jogador
 export function traduzirErroSala(err) {
   const msg = err?.message ?? ''

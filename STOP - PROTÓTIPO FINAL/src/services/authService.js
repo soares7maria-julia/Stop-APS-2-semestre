@@ -1,3 +1,4 @@
+// Encapsula chamadas ao Supabase Auth para cadastro, login, convidado, sessão, perfil e logout.
 import { supabase } from './supabase'
 
 // Cadastro: nome e avatar vão em "options.data" (metadados do usuário).

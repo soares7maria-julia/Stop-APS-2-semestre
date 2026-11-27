@@ -1,3 +1,4 @@
+// Coordena salas, rodadas, respostas, resultados, comunicação em tempo real e gravação da pontuação.
 import React, { useEffect, useRef, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { JoinRoomScreen } from '../screens/JoinRoomScreen'

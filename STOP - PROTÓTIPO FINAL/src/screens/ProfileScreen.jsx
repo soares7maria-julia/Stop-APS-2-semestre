@@ -1,3 +1,4 @@
+// Tela antiga de perfil com dados de exemplo; a rota atual usa ProfilePage com dados do Supabase.
 import React, { useState } from 'react';
 import { Screen, TopBar, Card, AvatarPicker, Input, Button, Badge } from '../components/ui';
 import { MOCK_ACHIEVEMENTS, MOCK_MY_SCORES } from '../gameState';

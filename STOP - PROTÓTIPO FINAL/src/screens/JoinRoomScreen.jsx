@@ -1,3 +1,4 @@
+// Lista salas públicas em tempo real e permite entrar em uma sala usando seu código.
 import React, { useEffect, useState } from 'react';
 import { Screen, TopBar, Card, Button, Input, Badge, useToast, ToastContainer } from '../components/ui';
 import { DIFFICULTY_CONFIG } from '../gameState';

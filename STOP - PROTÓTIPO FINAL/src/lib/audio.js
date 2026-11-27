@@ -1,3 +1,4 @@
+// Controla a música e os efeitos sonoros do jogo e a preferência de áudio do jogador.
 let context
 let musicTimer
 let enabled = false

@@ -1,3 +1,4 @@
+// Desenha o menu principal e seus controles de jogo, conta, ranking, tema e áudio.
 import React, { useState } from 'react';
 import { Button, Modal, Card, StopSign } from '../components/ui';
 import { Screen } from '../components/ui';

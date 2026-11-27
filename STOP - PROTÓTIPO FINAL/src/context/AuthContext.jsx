@@ -1,3 +1,4 @@
+// Compartilha sessão, perfil e pontuação pendente entre páginas, além de concentrar as ações de autenticação.
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { AVATARS } from '../components/ui'
 import {

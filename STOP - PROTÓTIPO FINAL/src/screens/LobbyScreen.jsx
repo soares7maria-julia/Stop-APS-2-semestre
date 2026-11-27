@@ -1,3 +1,4 @@
+// Mostra jogadores e estado da sala, com prontidão, convite, chat e início da partida.
 import React, { useState, useEffect, useRef } from 'react';
 import { Screen, TopBar, Card, Button, PlayerCard, Modal, useToast, ToastContainer } from '../components/ui';
 import { getRoomPlayers, findRoomByCode, subscribeToRoom, touchRoom, setReady as saveReady, startRoom, leaveRoom, joinRoomChat, buildInviteLink } from '../services/roomService';

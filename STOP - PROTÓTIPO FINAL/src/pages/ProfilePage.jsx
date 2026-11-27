@@ -1,3 +1,4 @@
+// Carrega estatísticas e histórico da conta e permite editar os dados públicos do perfil.
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ProfileScreen } from '../screens/ProfileScreen'

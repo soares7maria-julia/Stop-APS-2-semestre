@@ -1,3 +1,4 @@
+// Apresenta quem encerrou a rodada ou informa que o tempo terminou.
 import React, { useEffect } from 'react';
 import { Screen, Card } from '../components/ui';
 

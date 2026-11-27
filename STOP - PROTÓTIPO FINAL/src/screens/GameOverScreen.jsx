@@ -1,3 +1,4 @@
+// Apresenta o resultado final e o estado de gravação da pontuação da partida.
 import React from 'react';
 import { Screen, Card, Button } from '../components/ui';
 

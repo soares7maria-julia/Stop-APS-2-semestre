@@ -1,3 +1,4 @@
+// Centraliza categorias, níveis de dificuldade e dados de exemplo usados pelo jogo.
 // Shared types and mock data for the Stop! game prototype
 export const DEFAULT_CATEGORIES = ['Nome', 'Animal', 'Cidade', 'Cor', 'Fruta', 'País', 'Objeto', 'Profissão', 'Comida', 'Marca', 'Filme', 'Esporte'];
 export const DIFFICULTY_CONFIG = {

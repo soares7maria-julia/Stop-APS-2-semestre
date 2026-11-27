@@ -1,3 +1,4 @@
+/* Reúne estilos globais, tema visual, fontes e regras de aparência compartilhadas pelas telas. */
 @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Nunito:wght@400;500;600;700;800&display=swap');
 @import 'tailwindcss';
 

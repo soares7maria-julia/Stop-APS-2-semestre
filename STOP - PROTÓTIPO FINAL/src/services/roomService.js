@@ -1,3 +1,4 @@
+// Encapsula operações de sala no Supabase, incluindo criação, entrada, atualizações e eventos em tempo real.
 import { supabase } from './supabase'
 
 // Converte a linha do banco (snake_case) no formato que as telas usam
@@ -41,7 +42,7 @@ export function subscribeToPublicRooms(onChange) {
 }
 
 // Cria a sala. O código é gerado no Supabase e o dono já entra como jogador (uma chamada só).
-// Sem senha: o acesso é por código/link.
+// O código/link de convite funciona como credencial de acesso à sala privada.
 export async function createRoom({ name, isPrivate, totalRounds, difficulty, categories, maxPlayers = 8, user }) {
   const { data, error } = await supabase.rpc('create_room', {
     p_name: name,

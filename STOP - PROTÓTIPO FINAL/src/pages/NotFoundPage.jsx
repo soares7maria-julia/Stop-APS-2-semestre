@@ -1,3 +1,4 @@
+// Mostra uma tela para endereços que não correspondem a nenhuma rota da aplicação.
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Screen, Button, StopSign } from '../components/ui'

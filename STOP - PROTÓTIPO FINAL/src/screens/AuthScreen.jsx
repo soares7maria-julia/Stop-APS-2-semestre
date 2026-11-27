@@ -1,3 +1,4 @@
+// Tela antiga de login e cadastro mantida como referência; as rotas atuais usam LoginPage e RegisterPage.
 import React, { useState } from 'react';
 import { Button, Input, Divider, AvatarPicker, Card, StopSign } from '../components/ui';
 import { AVATARS } from '../components/ui';

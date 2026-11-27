@@ -1,3 +1,4 @@
+// Liga o menu principal aos dados do usuário e encaminha cada ação para a rota correspondente.
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { MenuScreen } from '../screens/MenuScreen'

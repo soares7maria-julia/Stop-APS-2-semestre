@@ -1,3 +1,4 @@
+// Exibe respostas e pontuação por categoria e jogador, e permite publicar ou avançar.
 import React from 'react';
 import { Screen, TopBar, Card, Button } from '../components/ui';
 import { answerText, isValidAnswer, normalizeText } from '../lib/scoring';

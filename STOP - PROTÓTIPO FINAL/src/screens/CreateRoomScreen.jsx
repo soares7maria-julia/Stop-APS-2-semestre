@@ -1,3 +1,4 @@
+// Reúne as opções da nova sala e envia os dados validados para o serviço de salas.
 import React, { useState } from 'react';
 import { Screen, TopBar, Card, Button, Input, Toggle, Select, CategoryChip } from '../components/ui';
 import { DEFAULT_CATEGORIES, DIFFICULTY_CONFIG } from '../gameState';
@@ -38,7 +39,7 @@ export function CreateRoomScreen({ onBack, onCreated, user }) {
             setCategories(prev => [...prev, cat]);
     }
 
-    // O código da sala é gerado pelo Supabase; sala privada não tem senha (acesso por código/link)
+    // O Supabase gera o código; em sala privada, esse código/link funciona como credencial de acesso.
     async function handleCreate() {
         setCreateError('');
         const result = validate(roomSchema, { name: roomName });

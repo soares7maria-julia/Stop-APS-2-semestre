@@ -1,3 +1,4 @@
+// Define as rotas da aplicação e coordena preferências globais, como tema e áudio.
 import React, { useEffect, useState } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'

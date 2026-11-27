@@ -1,3 +1,4 @@
+// Configura o Vite, os plugins de React e Tailwind, o build e os ajustes usados pelo Figma Make.
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';

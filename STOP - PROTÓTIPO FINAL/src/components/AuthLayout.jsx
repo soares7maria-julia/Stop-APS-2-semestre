@@ -1,3 +1,4 @@
+// Monta a estrutura visual compartilhada pelas páginas de login, cadastro e entrada como convidado.
 import React from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { Card, StopSign } from './ui'

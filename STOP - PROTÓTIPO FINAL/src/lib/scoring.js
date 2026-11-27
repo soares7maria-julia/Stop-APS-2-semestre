@@ -1,3 +1,4 @@
+// Normaliza respostas, verifica se começam com a letra da rodada e calcula pontos.
 // Pontuação de uma rodada. Hoje: resposta com pelo menos 2 letras, começando com a letra sorteada = 10 pts.
 // (Só a letra inicial, que o campo já traz preenchida, não conta como resposta.)
 // Respostas repetidas (5 pts) e contestação dependem dos outros jogadores da partida.

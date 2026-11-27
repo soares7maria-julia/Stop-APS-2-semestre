@@ -1,3 +1,4 @@
+// Lê o código de convite da URL e encaminha o jogador para entrar na sala correspondente.
 import React, { useEffect, useRef, useState } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import { Screen, Card, Button } from '../components/ui'

@@ -1,3 +1,4 @@
+// Valida o nome e o avatar e inicia uma sessão de convidado antes de jogar.
 import React, { useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Button, Input, AvatarPicker, AVATARS } from '../components/ui'

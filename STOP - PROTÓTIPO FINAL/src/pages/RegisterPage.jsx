@@ -1,3 +1,4 @@
+// Apresenta o cadastro de conta, valida os dados e registra uma pontuação pendente após autenticar.
 import React, { useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { Button, Input, AvatarPicker, AVATARS } from '../components/ui'

@@ -1,3 +1,4 @@
+// Apresenta as abas de ranking público e estatísticas/histórico do próprio jogador.
 import React, { useEffect, useState } from 'react';
 import { Screen, TopBar, Card, Button } from '../components/ui';
 import { getRanking, getMyStats, getMyHistory } from '../services/gameService';

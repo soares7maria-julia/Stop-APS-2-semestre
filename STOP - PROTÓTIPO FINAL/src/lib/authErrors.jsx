@@ -1,3 +1,4 @@
+// Converte erros do Supabase Auth em mensagens claras para a interface.
 export function traduzirErro(err) {
   const msg = err?.message ?? ''
   if (msg.includes('Invalid login credentials')) return 'E-mail ou senha incorretos.'

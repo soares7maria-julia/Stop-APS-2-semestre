@@ -1,3 +1,4 @@
+// Mostra a rodada, controla respostas e cronômetro e envia o sinal de STOP.
 import React, { useState, useEffect, useRef } from 'react';
 import { Screen, Button, Modal, PlayerCard } from '../components/ui';
 import { useToast, ToastContainer } from '../components/ui';

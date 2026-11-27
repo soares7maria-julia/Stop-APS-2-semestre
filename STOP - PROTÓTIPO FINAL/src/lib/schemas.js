@@ -1,3 +1,4 @@
+// Define regras Zod para validar formulários de conta, perfil, sala e código de entrada.
 import { z } from 'zod'
 
 const email = z.string().trim().min(1, 'Informe seu e-mail.').email('E-mail inválido.')

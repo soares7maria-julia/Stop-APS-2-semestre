@@ -1,3 +1,4 @@
+// Carrega e apresenta o ranking e os dados persistidos do jogador.
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { RankingScreen } from '../screens/RankingScreen'

@@ -1,3 +1,4 @@
+// Encapsula as consultas e gravações de pontuação, ranking, estatísticas e histórico no Supabase.
 import { supabase } from './supabase'
 
 // Registra a pontuação da partida. O banco só atualiza o recorde se a nova pontuação for maior.

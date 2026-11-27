@@ -1,3 +1,4 @@
+// Reúne componentes visuais reutilizáveis, como botões, campos, cartões e elementos de sala.
 //serve para reunir componentes visuais reutilizáveis do projeto.
 
 //Por exemplo, em vez de criar um botão do zero em cada tela, você pode criar um componente de 
